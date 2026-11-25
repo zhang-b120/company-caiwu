@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  FN-SEC-T1（167）安全审计独立 logger SECURITY_AUDIT。
+  先 include Spring Boot 默认 base.xml（保留原有控制台 + spring.log 行为不变、logging.level.* 仍生效），
+  再追加 SECURITY_AUDIT 独立滚动文件 logger（additivity=false：审计只进审计文件，不混入应用日志/控制台）。
+  注意：本文件为 logback-spring.xml（带 -spring），仅 Spring Boot 启动时处理；纯 JUnit 单测（无 Boot）忽略之，
+  故单测不会创建审计文件。
+-->
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/base.xml"/>
+
+    <springProperty scope="context" name="AUDIT_LOG_PATH"
+                    source="financial.security.audit.log-path"
+                    defaultValue="logs/security-audit.log"/>
+
+    <appender name="SECURITY_AUDIT_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${AUDIT_LOG_PATH}</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${AUDIT_LOG_PATH}.%d{yyyy-MM-dd}.%i.gz</fileNamePattern>
+            <maxFileSize>50MB</maxFileSize>
+            <maxHistory>90</maxHistory>
+            <totalSizeCap>2GB</totalSizeCap>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %msg%n</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <logger name="SECURITY_AUDIT" level="INFO" additivity="false">
+        <appender-ref ref="SECURITY_AUDIT_FILE"/>
+    </logger>
+</configuration>

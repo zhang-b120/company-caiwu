@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<sqltoy xmlns="http://www.sagframe.com/schema/sqltoy"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.sagframe.com/schema/sqltoy http://www.sagframe.com/schema/sqltoy/sqltoy.xsd">
+
+    <!--期间科目列表-->
+    <sql id="batchInsertSubject" type="insert">
+        <value>
+            <![CDATA[
+            insert
+            into `fxy_financial_subject` (`balance_direction`, `code`, `query_code`,
+                                          currency_accounting, auxiliary_accounting, cash,
+                                          `full_name`, `leaf`, `level`, `mnemonic_code`, `name`, `parent_id`, `status`, `system_default`, `type`, `unit`, `account_sets_id`, `id`)
+            values (:balanceDirection, :code, :queryCode, :auxiliaryAccountingStr, :currencyAccountingStr, :cash, :fullName, :leaf, :level, :mnemonicCode, :name, :parentId, :status, :systemDefault, :type, :unit, :accountSetsId, :id)
+            on duplicate key update `balance_direction`  = values(balance_direction),
+                                    `code`= values(code),
+                                    `query_code`= values(query_code),
+                                    auxiliary_accounting = values(auxiliary_accounting),
+                                    currency_accounting  = values(currency_accounting),
+                                    cash                 = values(cash),
+                                    `full_name`          = values(full_name),
+                                    `leaf`= values(leaf),
+                                    `level`= values(level),
+                                    `mnemonic_code`= values(mnemonic_code),
+                                    `name`= values(name),
+                                    `parent_id`= values(parent_id),
+                                    `status`= values(status),
+                                    `type`= values(type),
+                                    `unit`= values(unit)
+            ]]>
+        </value>
+    </sql>
+
+</sqltoy>

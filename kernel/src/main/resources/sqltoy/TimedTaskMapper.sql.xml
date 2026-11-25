@@ -1,0 +1,1079 @@
+<?xml version="1.0" encoding="utf-8"?>
+<sqltoy xmlns="http://www.sagframe.com/schema/sqltoy"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.sagframe.com/schema/sqltoy http://www.sagframe.com/schema/sqltoy/sqltoy.xsd">
+
+    <!--定时任务获取任务列表-->
+    <sql id="getTask" type="select">
+        <value>
+            <![CDATA[
+                            select
+                        t1.id as taskId,
+                        t.id as accountSetsId,
+                        t.company_name as companyName,
+                        t.province as province,
+                        t.vat_type as vatType,
+                        t.credit_code as creditCode,
+                        t1.check_date as checkDate
+                    from
+                        fxy_financial_account_sets t
+                    left join fxy_financial_timed_task_invoice t1 on
+                        t.id = t1.account_sets_id
+                    left join fxy_financial_user_account_sets t2 on
+                        t.id = t2.account_sets_id
+                    left join fxy_financial_user t3 on
+                        t3.id = t2.user_id
+                    inner join (
+                        select
+                            max(id) as id,
+                            account_sets_id,
+                            check_date
+                        from
+                            fxy_financial_timed_task_invoice
+                        group by
+                            account_sets_id,
+                            check_date
+                                                    ) as maxId
+                                                    on
+                        maxId.id = t1.id
+                    LEFT JOIN                     (select a.credit_code as credit_code  from fxy_financial_agent_channel_information a  where  a.service_staff_one = "江铭铭"  GROUP BY a.credit_code) as credit_code_list
+ ON t.credit_code = credit_code_list.credit_code
+                    where
+                        1 = 1
+                        and t1.state = 0
+                        and t.deactivated = false
+                        and t2.user_id in (693783226539405313,693783309766979586)
+                        and credit_code_list.credit_code is not NULL
+                    order by
+                        t.province desc ,
+                        t.company_name desc
+                    limit 1
+            ]]>
+        </value>
+    </sql>
+    <sql id="isExistTask" type="select">
+        <value>
+            <![CDATA[
+                SELECT COUNT(1) AS count
+                FROM fxy_financial_timed_task_invoice
+                WHERE account_sets_id = :accountSetsId
+            ]]>
+        </value>
+
+    </sql>
+    <sql id="updateInvoiceTask" type="update">
+        <value>
+            <![CDATA[
+                UPDATE fxy_financial_timed_task_invoice
+                SET result = :result,
+                state = :state
+                #[,failure_reason = :failureReason]
+                WHERE
+                  id = :id
+            ]]>
+        </value>
+
+    </sql>
+    <sql id="updateTaskOfTax" type="update">
+        <value>
+            <![CDATA[
+                UPDATE fxy_financial_timed_task_tax
+                SET result = :result,
+                state = :state
+                #[,failure_reason = :failureReason]
+                #[,img_url = :imgUrl]
+                WHERE
+                  id = :id
+            ]]>
+        </value>
+    </sql>
+    <sql id="updateTaskOfTaxItem" type="update">
+        <value>
+            <![CDATA[
+                UPDATE fxy_financial_timed_task_tax_item
+                SET result = :result,
+                state = :state
+                #[,failure_reason = :failureReason]
+                #[,img_url = :imgUrl]
+                WHERE
+                  id = :id
+            ]]>
+        </value>
+    </sql>
+    <sql id="insertInvoiceTask" type="insert">
+        <value>
+            <![CDATA[
+                INSERT INTO `fxy_financial_timed_task_invoice`
+                (`account_sets_id`, `check_date`, `result`, `state`, `failure_reason`, `create_time`)
+                VALUES
+                (:accountSetsId,
+                :checkDate,
+                :result,
+                :state,
+                :failureReason,
+                :createTime)
+            ]]>
+        </value>
+    </sql>
+
+    <sql id="insertInvoiceTaskResult" type="insert">
+        <value>
+            <![CDATA[
+                INSERT INTO `fxy_financial_timed_task_invoice_result`
+                (`timed_task_invoice_id`, `invoice_type`, `reason`, `count`, `amount`, `tax_amount`,`invoice_img`)
+                VALUES
+                (:timedTaskInvoiceId,
+                :invoiceType,
+                :reason,
+                :count,
+                :amount,
+                :taxAmount,
+                :InvoiceImg)
+            ]]>
+        </value>
+    </sql>
+
+    <sql id="selectTimeTaskOfTax" type="select">
+        <value>
+            <![CDATA[
+                    SELECT
+                      t.id AS accountSetsId,
+                      t.company_name AS companyName,
+                      t2.tax_Name AS taxType,
+                      t.province AS province,
+                      t.credit_code AS creditCode,
+                      t3.sort
+                    FROM
+                      fxy_financial_account_sets t
+                      LEFT JOIN fxy_financial_timed_tax_name t2 ON 1 = 1
+                      LEFT JOIN fxy_financial_tax_table_sort t3 ON t2.tax_Name = t3.tax_type
+                    WHERE
+                      t.vat_type = 'COMMONLY'
+                      AND t.id NOT IN (SELECT account_sets_id FROM fxy_financial_timed_task_tax)
+                      AND t.deactivated IS FALSE
+                        AND t.province ='shandong'
+                    ORDER BY
+                      t.province
+                    LIMIT 1
+<!--                  SELECT-->
+<!--                          accountSetsId,-->
+<!--                          companyName,-->
+<!--                          taxType,-->
+<!--                          province,-->
+<!--                          creditCode,-->
+<!--                          sort,-->
+<!--                          group_number,-->
+<!--                          checkDate-->
+<!--                        FROM-->
+<!--                          (-->
+<!--                            SELECT-->
+<!--                              t.account_sets_id AS accountSetsId,-->
+<!--                              t.company_name AS companyName,-->
+<!--                              t.tax_type AS taxType,-->
+<!--                              t1.province,-->
+<!--                              t1.credit_code AS creditCode,-->
+<!--                              t2.sort AS sort,-->
+<!--                              t4.check_date AS checkDate,-->
+<!--                              DENSE_RANK() OVER (ORDER BY t.account_sets_id) AS group_number,-->
+<!--                              ROW_NUMBER() OVER (PARTITION BY t.account_sets_id ORDER BY t2.sort, t1.province) AS rn_in_group-->
+<!--                            FROM-->
+<!--                              fxy_financial_tax_table t-->
+<!--                              LEFT JOIN fxy_financial_account_sets t1 ON t.account_sets_id = t1.id-->
+<!--                              LEFT JOIN fxy_financial_tax_table_sort t2 ON t.tax_type = t2.tax_type-->
+
+<!--                              LEFT JOIN fxy_financial_checkout t4 ON t4.account_sets_id = t.account_sets_id-->
+<!--                            WHERE-->
+<!--                              t.tax_state = '未申报'-->
+<!--                              AND DATE_FORMAT(t4.check_date, '%Y-%m') = '2025-09'-->
+<!--                              AND t4.status = 2-->
+<!--                              AND t1.province = "shandong"-->
+<!--                              AND NOT EXISTS (select 1 from fxy_financial_timed_task_tax t3 where t.account_sets_id = t3.account_sets_id and t.tax_type = t3.tax_type and t3.state =1)-->
+<!--                          ) ranked-->
+<!--                        WHERE-->
+<!--                          group_number = 1-->
+<!--                        ORDER BY-->
+<!--                          group_number,-->
+<!--                          rn_in_group;-->
+            ]]>
+        </value>
+    </sql>
+    <sql id="isExistTaskOfTax" type="select">
+        <value>
+            <![CDATA[
+                SELECT COUNT(1) AS count
+                FROM fxy_financial_timed_task_tax
+                WHERE account_sets_id = :accountSetsId and tax_type = :taxType
+            ]]>
+        </value>
+    </sql>
+    <sql id="deleteTaxPayment">
+        <value>
+            <![CDATA[
+                 DELETE FROM `fxy_financial_timed_task_payment` WHERE  account_sets_id = :accountSetsId
+            ]]>
+        </value>
+    </sql>
+    <sql id="updateTaxPayment" type="update">
+        <value>
+            <![CDATA[
+                UPDATE fxy_financial_timed_task_payment
+                SET result = :result,
+                    state = :state
+                    #[,img_url = :imgUrl]
+                    #[,total_taxes = :totalTaxes]
+                    #[,tax_payment_html = :taxPaymentHtml]
+                    #[,failure_reason = :failureReason]
+                WHERE id = :id
+            ]]>
+        </value>
+    </sql>
+    <sql id="insertTaxPayment" type="insert">
+        <value>
+            <![CDATA[
+                INSERT INTO `fxy_financial_timed_task_payment`
+                (`account_sets_id`, `img_url`,  total_taxes , tax_payment_html,check_date, result, state
+                #[,failure_reason]
+                )
+                VALUES
+                (:accountSetsId,
+                :imgUrl,
+                :totalTaxes,
+                :taxPaymentHtml,
+                :checkDate,
+                :result,
+                :state
+                #[,:failureReason]
+                )
+            ]]>
+        </value>
+    </sql>
+    <sql id="selectCountIsSuccessOfTax" type="select">
+        <value>
+            <![CDATA[
+               SELECT
+                  COUNT(1) AS count
+               FROM
+                  `fxy_financial_timed_task_tax` t
+               WHERE
+                  t.account_sets_id = :accountSetsId
+                  AND t.tax_type LIKE CONCAT( :reTaxType,'%')
+                  AND t.result = TRUE
+                  AND t.state = TRUE
+            ]]>
+        </value>
+    </sql>
+    <sql id="selectCountIsSuccessOfTaxItem" type="select">
+        <value>
+            <![CDATA[
+                SELECT
+                  COUNT(1) AS count
+                FROM
+                  fxy_financial_tax_table t
+                WHERE
+                  t.account_sets_id = :accountSetsId
+                  AND t.tax_type LIKE CONCAT( :reTaxType,'%')
+                  AND t.tax_state LIKE CONCAT( '%',"已申报",'%')
+            ]]>
+        </value>
+    </sql>
+    <sql id="getTaxPaymentCompany" type="select">
+        <value>
+            <![CDATA[
+                    SELECT
+                      t.company_name AS companyName,
+                      t.id AS accountSetsId,
+                      t.province AS province,
+                      t.credit_code AS creditCode
+                    FROM
+                      fxy_financial_account_sets t
+                      LEFT JOIN fxy_financial_timed_task_payment t1 ON t.id = t1.account_sets_id
+                      LEFT JOIN fxy_financial_user_account_sets t2 ON t.id = t2.account_sets_id
+                      LEFT JOIN fxy_financial_user t3 ON t2.user_id = t3.id
+                    WHERE
+                      t1.id IS NULL
+                      AND
+                      t3.mobile = "13969134863"
+                    ORDER BY
+                      t.province
+                    DESC
+                    LIMIT 1
+            ]]>
+        </value>
+    </sql>
+    <sql id="deleteTaxReportResult">
+        <value>
+            <![CDATA[
+                  DELETE  FROM `fxy_financial_tax_report_result` WHERE account_set_id = :accountSetId
+            ]]>
+        </value>
+    </sql>
+    <sql id="updateFinancialProcess" type="update">
+
+        <value>
+            <![CDATA[
+                    UPDATE fxy_financial_financial_process t
+                    SET
+                        #[   t.is_accounting_done = :isAccountingDone]
+                        #[ ,t.is_individual_tax_completed = :isIndividualTaxCompleted]
+                        #[ ,t.is_payroll_processed = :isPayrollProcessed]
+                        #[ ,t.is_personnel_info_synced = :isPersonnelInfoSynced]
+                        #[ ,t.is_tax_filing_completed = :isTaxFilingCompleted]
+                        #[ ,t.is_tax_item_completed = :isTaxItemCompleted]
+                        #[ ,t.is_ticket_obtained =:isTicketObtained]
+                        #[ ,t.national_tax_verification_status = :nationalTaxVerificationStatus]
+                        #[ ,t.payment_progress = :paymentProgress]
+                        #[ ,t.accounting_progress = :accountingProgress]
+                        #[ ,t.national_tax_progress = :nationalTaxProgress]
+                        #[ ,t.individual_tax_progress = :individualTaxProgress]
+                        #[ ,t.ticket_progress = :ticketProgress]
+                        ,t.update_time = NOW()
+                    WHERE
+                        t.account_sets_id = :accountSetsId AND
+                        t.accounting_period = :accountingPeriod
+                ]]>
+        </value>
+    </sql>
+    <sql id="insertFinancialProcess" type="insert">
+
+        <value>
+            <![CDATA[
+                        INSERT INTO `financial`.`fxy_financial_financial_process`
+                         (
+                        `account_sets_id`,
+                        `accounting_period`,
+                        `is_ticket_obtained`,
+                        `is_tax_item_completed`,
+                        `is_accounting_done`,
+                        `is_tax_filing_completed`,
+                        `is_payroll_processed`,
+                        `is_personnel_info_synced`,
+                        `is_individual_tax_completed`,
+                        `national_tax_verification_status`,
+                        `payment_progress`,
+                        `create_time`,
+                        `update_time`)
+                        VALUES
+                        (:accountSetsId,  :accountingPeriod,  :isTicketObtained,  :isTaxItemCompleted,  :isAccountingDone,  :isTaxFilingCompleted,  :isPayrollProcessed,  :isPersonnelInfoSynced,  :isIndividualTaxCompleted,  :nationalTaxVerificationStatus,  :paymentProgress,  NOW(),  NOW());
+                ]]>
+        </value>
+    </sql>
+    <sql id="selectProcess" type="select">
+        <value>
+            <![CDATA[
+                SELECT t1.*
+                    FROM fxy_financial_financial_process t1
+                    WHERE t1.rank = (
+                        SELECT MAX(t2.rank)
+                        FROM fxy_financial_financial_process t2
+                        WHERE t2.account_sets_id = t1.account_sets_id
+                    );
+            ]]>
+        </value>
+    </sql>
+
+    <sql id="getInvoiceTaskDetail" type="select">
+        <value>
+            <![CDATA[
+                 WITH rs AS (
+                    SELECT
+                        ftti.id
+                    FROM fxy_financial_timed_task_invoice ftti
+                    INNER JOIN (
+                        select max(id) id,account_sets_id from fxy_financial_timed_task_invoice where
+                            DATE_FORMAT(check_date, '%Y%m%d') = DATE_FORMAT(:searchDate, '%Y%m%d')
+                        group by
+                            account_sets_id
+                    ) max_id ON max_id.id = ftti.id
+                )
+                SELECT
+                    ftti.account_sets_id as accountSetsId,
+                    fas.company_name as companyName,
+                    ftti.result as result,
+                    ftti.failure_reason as failureReason,
+                    fttis.invoice_type as invoiceType,
+                    fttis.count as count,
+                    fttis.amount as amount,
+                    fttis.tax_amount as taxAmount,
+                    fttis.reason as reason,
+                    ftti.check_date
+                FROM
+                    rs rs
+                INNER JOIN
+                    fxy_financial_timed_task_invoice ftti ON rs.id = ftti.id
+                LEFT JOIN
+                    fxy_financial_account_sets fas ON fas.id = ftti.account_sets_id
+                LEFT JOIN
+                    fxy_financial_timed_task_invoice_result fttis ON ftti.id = fttis.timed_task_invoice_id
+                WHERE
+                    1=1
+                    AND DATE_FORMAT(ftti.check_date, '%Y%m%d') = DATE_FORMAT(:searchDate, '%Y%m%d')
+                    AND ftti.account_sets_id IN (:accountSetsId)
+                    #[AND ftti.result = :result]
+                    #[AND fas.province = :province]
+
+            ]]>
+        </value>
+    </sql>
+    <sql id="getAccountSetsOfTax" type="select">
+        <value>
+            <![CDATA[
+                    SELECT
+                      id AS accountSetsId ,company_name AS companyName
+                    FROM
+                      fxy_financial_account_sets ffas
+                    WHERE
+                        ffas.deactivated IS FALSE
+                        AND
+                      ffas.id IN (SELECT ffuas.account_sets_id FROM fxy_financial_user_account_sets ffuas WHERE user_id = :userId)
+                      #[AND ffas.province = :province]
+                    GROUP BY id
+            ]]>
+        </value>
+    </sql>
+
+    <sql id="getTaxItemTask" type="select">
+        <value>
+            <![CDATA[
+                SELECT
+                    t.id AS accountSetsId ,t.credit_code AS creditCode,t2.city_tax_url AS cityTaxUrl
+                FROM
+                    fxy_financial_account_sets t
+                LEFT JOIN
+                    fxy_financial_tax_bureau_address  t2
+                    ON t.province = t2.pin_yin
+                WHERE
+                    t.id  IN(SELECT account_set_id FROM fxy_financial_tax_report_result t1 WHERE t1.tax_time = :taxTime AND t1.flag = 0)
+                    AND t.deactivated IS FALSE
+                    #[AND t.province = :province]
+                LIMIT 1
+            ]]>
+        </value>
+    </sql>
+    <!--                        shaanxi、qingdao、liaoning、jilin、jiangxi-->
+    <!-- 根据账期查询报税任务表，每个tax_type和account_sets_id分组中id最大的记录   报税123  -->
+    <!-- 排序规则：先按省份，再按企业（account_sets_id），最后按税种的sort排序，保证同一省份和企业的任务集中在一起 -->
+    <sql id="selectTimedTaskTaxByCheckDate" type="select">
+        <value>
+            <![CDATA[
+                   SELECT
+                        t.id,
+                        t.account_sets_id AS accountSetsId,
+                        t.tax_type AS taxType,
+                        t.check_date AS checkDate,
+                        a.credit_code AS creditCode,
+                        a.province AS province,
+                        a.vat_type AS vatType,
+                        a.company_name AS companyName,
+                        COALESCE(t2.sort, 999999) AS sort
+                    FROM
+                        fxy_financial_timed_task_tax t
+                    INNER JOIN (
+                        SELECT
+                            t2.tax_type,
+                            t2.account_sets_id,
+                            MAX(t2.id) AS max_id
+                        FROM
+                            fxy_financial_timed_task_tax t2
+                        WHERE
+                            t2.check_date = "2025-12-01"
+                        GROUP BY
+                            t2.tax_type,
+                            t2.account_sets_id
+                    ) max_ids ON t.tax_type = max_ids.tax_type
+                        AND t.account_sets_id = max_ids.account_sets_id
+                        AND t.id = max_ids.max_id
+                    LEFT JOIN
+                        fxy_financial_account_sets a ON t.account_sets_id = a.id
+                    left join
+                        fxy_financial_user_account_sets ffuas on ffuas.account_sets_id = a.id
+                    LEFT JOIN
+                        fxy_financial_tax_table_sort t2 ON t.tax_type = t2.tax_type
+                    WHERE
+                        t.check_date = "2025-12-01"
+                        AND t.state = 0
+
+                        and a.province in ( "shaanxi","qingdao","liaoning","jilin","jiangxi")
+                        and ffuas.user_id in( '781841492427305006','721059376894490497','794487206395019484','801504833780875670')
+                    ORDER BY
+                        a.province ASC,
+                        t.account_sets_id ASC,
+                        COALESCE(t2.sort, 999999) ASC
+                    LIMIT 1
+
+            ]]>
+        </value>
+    </sql>
+
+    <!-- 根据账期查询报税项任务表，每个账套id组中id最大的记录     获取报税条目123-->
+    <sql id="selectTimedTaskTaxItemByCheckDate" type="select">
+        <value>
+            <![CDATA[
+                	SELECT
+                       t.id,
+                        t.account_sets_id AS accountSetsId,
+                        a.credit_code AS creditCode,
+                        t.check_date AS checkDate,
+                        a.province AS province,
+                        a.company_name AS companyName
+                    FROM
+                        fxy_financial_timed_task_tax_item t
+                    left join
+                        fxy_financial_user_account_sets ffuas
+                        on
+                        ffuas.account_sets_id = t.account_sets_id
+                    INNER JOIN (
+                        SELECT
+                            t2.account_sets_id,
+                            MAX(t2.id) AS max_id
+                        FROM
+                            fxy_financial_timed_task_tax_item t2
+                        LEFT JOIN
+                            fxy_financial_account_sets a2 ON t2.account_sets_id = a2.id
+                        WHERE
+                            t2.check_date = "2026-01-01"
+
+                        GROUP BY
+                            t2.account_sets_id
+                    ) max_ids ON t.account_sets_id = max_ids.account_sets_id
+                        AND t.id = max_ids.max_id
+                    LEFT JOIN
+                        fxy_financial_account_sets a ON t.account_sets_id = a.id
+                    WHERE
+                        t.check_date = "2026-01-01"
+                        AND t.state = 0
+                        and a.id = '777101825773148051'
+                        and ffuas.user_id in( '781841492427305006','721059376894490497','794487206395019484','801504833780875670')
+                    ORDER BY
+                        a.province ASC
+                    LIMIT 1
+            ]]>
+        </value>
+    </sql>
+
+    <!-- 根据账期查询税款表，每个账套id组中id最大的记录 -->
+    <sql id="selectTimedTaskPaymentByCheckDate" type="select">
+        <value>
+            <![CDATA[
+                SELECT
+                    t.id,
+                    t.account_sets_id AS accountSetsId,
+                    t.check_date AS checkDate,
+                    a.credit_code AS creditCode,
+                    a.province AS province,
+                    a.company_name AS companyName
+                FROM
+                    fxy_financial_timed_task_payment t
+                INNER JOIN (
+                    SELECT
+                        t2.account_sets_id,
+                        MAX(t2.id) AS max_id
+                    FROM
+                        fxy_financial_timed_task_payment t2
+                    LEFT JOIN
+                        fxy_financial_account_sets a2 ON t2.account_sets_id = a2.id
+                    WHERE
+                        t2.check_date = :checkDate
+                        #[AND a2.province = :province]
+                    GROUP BY
+                        t2.account_sets_id
+                ) max_ids ON t.account_sets_id = max_ids.account_sets_id
+                    AND t.id = max_ids.max_id
+                LEFT JOIN
+                    fxy_financial_account_sets a ON t.account_sets_id = a.id
+                WHERE
+                    a.id = '777101825773148051'
+                    and
+                    t.check_date = :checkDate
+                    AND t.state = 0
+                    #[AND a.province = :province]
+                ORDER BY
+                    a.province ASC
+                LIMIT 1
+            ]]>
+        </value>
+    </sql>
+
+    <!-- 查询报税任务表中指定账期、账套id、税种下id最大的记录的result字段 -->
+    <sql id="selectTimedTaskTaxResult" type="select">
+        <value>
+            <![CDATA[
+                SELECT
+                    t.result
+                FROM
+                    fxy_financial_timed_task_tax t
+                WHERE
+                    t.check_date = :checkDate
+                    AND t.account_sets_id = :accountSetsId
+                    AND t.tax_type LIKE CONCAT( :TaxType,'%')
+                ORDER BY
+                    t.id DESC
+                LIMIT 1
+            ]]>
+        </value>
+    </sql>
+
+    <!-- 查询报税表中指定账套id、税种下，tax_end_time大于等于当前日期的记录的tax_state字段 -->
+    <sql id="selectTaxTableState" type="select">
+        <value>
+            <![CDATA[
+                SELECT
+                    t.tax_state AS taxState
+                FROM
+                    fxy_financial_tax_table t
+                WHERE
+                    t.account_sets_id = :accountSetsId
+                    AND t.tax_type LIKE CONCAT( :TaxType,'%')
+                    AND t.tax_end_time >= :currentDate
+                ORDER BY
+                    t.tax_end_time ASC
+                LIMIT 1
+            ]]>
+        </value>
+    </sql>
+
+    <!-- 插入账套随手记 -->
+    <sql id="insertAccountSetsNotes" type="insert">
+        <value>
+            <![CDATA[
+                INSERT INTO `financial`.`fxy_financial_account_sets_notes`
+                (
+                    `account_sets_id`,
+                    `notes`,
+                    `create_time`,
+                    `update_time`
+                )
+                VALUES
+                (:accountSetsId, :notes, NOW(), NOW())
+            ]]>
+        </value>
+    </sql>
+
+    <!-- 更新账套随手记 -->
+    <sql id="updateAccountSetsNotes" type="update">
+        <value>
+            <![CDATA[
+                UPDATE `financial`.`fxy_financial_account_sets_notes` t
+                SET
+                    t.notes = :notes,
+                    t.update_time = NOW()
+                WHERE
+                    t.account_sets_id = :accountSetsId
+            ]]>
+        </value>
+    </sql>
+
+
+    <!-- 查询账套的取票情况，取票成功的数量-->
+    <sql id="getInvoiceStatus" type="select">
+        <value>
+            <![CDATA[
+                select
+                            count(1)
+                from
+                    fxy_financial_timed_task_invoice fftti
+                      inner join (
+                                            select
+                                                max(id) as id,
+                                                account_sets_id,
+                                                check_date
+                                            from
+                                                fxy_financial_timed_task_invoice
+                                            group by
+                                                account_sets_id,
+                                                check_date
+                                                        ) as maxId
+                                                        on
+                                            maxId.id = fftti.id
+                                            and
+                                            maxId.check_date = fftti.check_date
+                        where
+                                fftti.check_date between :start
+                                and :end
+                                and( fftti.state = 0
+                                or (fftti.state = 1 and fftti.`result` = 2))
+                                and fftti.account_sets_id  = :accountSetsId
+            ]]>
+        </value>
+    </sql>
+    <!-- 读取获取自检项的任务-->
+    <sql id="getSelfInspectionTask" type="select">
+        <value>
+            <![CDATA[
+                            select
+                              distinct  ffas.id as account_sets_id ,ffas.vat_type as vatType , ffas.province as province , ffas.credit_code as creditCode
+                            from
+                                fxy_financial_account_sets ffas
+                            left join
+                                fxy_financial_user_account_sets ffuas
+                                on ffas.id = ffuas.account_sets_id
+                                where 1 = 1
+                                and ffas.deactivated is false
+                                and not exists
+                                (
+                                select
+                                    1
+                                from
+                                    fxy_financial_timed_task_declare_self_inspection ffttdsi
+                                where
+                                    ffttdsi.account_sets_id  = ffas.id
+                                    and
+                                    ffttdsi.period = :period
+                                )
+                                and ffuas.user_id in( '781841492427305006','721059376894490497','794487206395019484','801504833780875670')
+                            order by
+                                ffas.province asc
+                            limit 1
+            ]]>
+        </value>
+    </sql>
+    <!-- 插入自检项任务状态 -->
+    <sql id="insertSelfInspectionTaskStatus" type="insert">
+        <value>
+            <![CDATA[
+                INSERT INTO financial.fxy_financial_timed_task_declare_self_inspection
+                (credit_code, img_url, problem_description, period, account_sets_id)
+                VALUES
+                ( :creditCode, :imgUrl, :problemDescription, :period, :accountSetsId)
+            ]]>
+        </value>
+    </sql>
+    <!-- 读取检测是否是办税员的任务-->
+<!--    小程序-->
+    <sql id="getTaxPayer1Status" type="select">
+        <value>
+            <![CDATA[
+                           select
+                                ffas.id as accountSetsId,ffas.credit_code as creditCode ,ffas.province as province, ffas.company_name as companyName
+                            from
+                                fxy_financial_account_sets ffas
+                            left join
+                                fxy_financial_user_account_sets ffuas
+                                on ffas.id = ffuas.account_sets_id
+                            where
+                                1 = 1
+                                and ffas.deactivated is false
+                                and ffuas.user_id in ( '781841492427305006','721059376894490497','794487206395019484','801504833780875670')
+                                and not exists (
+                                select
+                                    1
+                                from
+                                    fxy_financial_tax_payer fftp
+                                where ffas.id = fftp.account_sets_id
+                                    and fftp.mobile1 != ''
+)
+	limit 1
+            ]]>
+        </value>
+    </sql>
+<!--    小程序-->
+    <sql id="getTaxPayer2Status" type="select">
+        <value>
+            <![CDATA[
+                           select
+                                ffas.id as accountSetsId,ffas.credit_code as creditCode ,ffas.province as province, ffas.company_name as companyName
+                            from
+                                fxy_financial_account_sets ffas
+                            left join
+                                fxy_financial_user_account_sets ffuas
+                                on ffas.id = ffuas.account_sets_id
+                            where
+                                1 = 1
+                                and ffas.deactivated is false
+                                and ffuas.user_id in ( '781841492427305006','721059376894490497','794487206395019484','801504833780875670')
+                                and not exists (
+                                select
+                                    1
+                                from
+                                    fxy_financial_tax_payer fftp
+                                where ffas.id = fftp.account_sets_id
+                                    and fftp.mobile2 != ''
+                                    )
+	limit 1
+            ]]>
+        </value>
+    </sql>
+<!--    本地财务-->
+    <sql id="getTaxPayer3Status" type="select">
+        <value>
+            <![CDATA[
+                           select
+                                ffas.id as accountSetsId,ffas.credit_code as creditCode ,ffas.province as province, ffas.company_name as companyName
+                            from
+                                fxy_financial_account_sets ffas
+                            left join
+                                fxy_financial_user_account_sets ffuas
+                                on ffas.id = ffuas.account_sets_id
+                            where
+                                1 = 1
+                                and ffas.deactivated is false
+                                and ffuas.user_id in('693783226539405313','693783309766979586')
+                                and not exists (
+                                select
+                                    1
+                                from
+                                    fxy_financial_tax_payer fftp
+                                where ffas.id = fftp.account_sets_id
+                                    and fftp.mobile3 != ''
+                                    )
+                            ORDER BY
+                            ffas.province
+                            	limit 1
+            ]]>
+        </value>
+    </sql>
+    <!--    小程序-->
+    <sql id="addTaxPayer2" type="select">
+        <value>
+            <![CDATA[
+                           select
+                                ffas.id as accountSetsId,ffas.credit_code as creditCode ,ffas.province as province, ffas.company_name as companyName
+                            from
+                                fxy_financial_account_sets ffas
+                            left join fxy_financial_tax_payer fftp
+                                on ffas.id  = fftp.account_sets_id
+                            left join
+                                fxy_financial_user_account_sets ffuas
+                                on ffas.id = ffuas.account_sets_id
+                            where
+                                1=1
+                                and not exists (select 1 from fxy_financial_tax_payer a where (a.mobile2 = 1 or a.mobile2 = 2) and ffas.id  = a.account_sets_id )
+                                and ffuas.user_id in ( '781841492427305006','721059376894490497','794487206395019484','801504833780875670')
+                            order by
+	                            ffas.province
+                                limit 1
+            ]]>
+        </value>
+    </sql>
+    <!-- 发票销项/进项按账套汇总查询，供前端列表展示 -->
+    <sql id="getInvoiceTaxSummary" type="select">
+        <value>
+            <![CDATA[
+                SELECT
+                    ffas.id                                                AS accountSetsId,
+                    ffas.province                                           AS province,
+                    ffas.company_name                                       AS companyName,
+                    -- 只有当取票结果为 1（成功）时，进销项汇总才有效，否则置为空
+                    CASE
+                        WHEN taskInvoice.result = 1
+                            THEN COALESCE(xiaoxiang.xiaoxiangsum, 0)
+                        ELSE NULL
+                    END                                                     AS outputTaxSum,
+                    CASE
+                        WHEN taskInvoice.result = 1
+                            THEN COALESCE(jinxiang.jinxiangsum, 0)
+                        ELSE NULL
+                    END                                                     AS inputTaxSum,
+                    CASE
+                        WHEN taskInvoice.result = 1
+                            THEN COALESCE(xiaoxiang.xiaoxiangsum, 0)
+                                 - COALESCE(jinxiang.jinxiangsum, 0)
+                        ELSE NULL
+                    END                                                     AS taxDiff,
+                    -- 是否需要找进项：仅在取票成功时根据差额判断
+                    CASE
+                        WHEN taskInvoice.result = 1
+                             AND COALESCE(xiaoxiang.xiaoxiangsum, 0) > COALESCE(jinxiang.jinxiangsum, 0)
+                            THEN '需要找进项'
+                        WHEN taskInvoice.result = 1
+                            THEN '不需要'
+                        ELSE NULL
+                    END                                                     AS needInputFlag,
+                    taskInvoice.result                                      AS ticketResult,
+                    taskInvoice.failure_reason                              AS failureReason,
+                    taskInvoice.end_time                                    AS updateTime
+                FROM
+                    fxy_financial_account_sets ffas
+                LEFT JOIN (
+                    SELECT
+                        SUM(ffi.tax_amount) AS xiaoxiangsum,
+                        ffi.account_sets_id
+                    FROM
+                        fxy_financial_invoice ffi
+                    WHERE
+                        ffi.assignment_date >= :startAssignmentDate
+                        AND ffi.assignment_date <= :endAssignmentDate
+                        AND ffi.type = 0
+                    GROUP BY
+                        ffi.account_sets_id
+                ) xiaoxiang ON xiaoxiang.account_sets_id = ffas.id
+                LEFT JOIN (
+                    SELECT
+                        SUM(ffi.tax_amount) AS jinxiangsum,
+                        ffi.account_sets_id
+                    FROM
+                        fxy_financial_invoice ffi
+                    WHERE
+                        ffi.assignment_date >= :startAssignmentDate
+                        AND ffi.assignment_date <= :endAssignmentDate
+                        AND ffi.type = 1
+                    GROUP BY
+                        ffi.account_sets_id
+                ) jinxiang ON jinxiang.account_sets_id = ffas.id
+                LEFT JOIN
+                    fxy_financial_user_account_sets ffuas
+                    ON ffas.id = ffuas.account_sets_id
+                LEFT JOIN (
+                    SELECT
+                        fftti.account_sets_id  AS account_sets_id,
+                        fftti.result           AS result,
+                        fftti.failure_reason   AS failure_reason,
+                        fftti.end_time         AS end_time
+                    FROM
+                        fxy_financial_timed_task_invoice fftti
+                    INNER JOIN (
+                        SELECT
+                            MAX(a.id)         AS maxId,
+                            a.account_sets_id AS account_sets_id
+                        FROM
+                            fxy_financial_timed_task_invoice a
+                        WHERE
+                            a.check_date = :checkDate
+                        GROUP BY
+                            a.account_sets_id
+                    ) maxIdOfInvoice
+                        ON fftti.id = maxIdOfInvoice.maxId
+                        AND fftti.account_sets_id = maxIdOfInvoice.account_sets_id
+                    WHERE
+                        fftti.check_date = :checkDate
+                ) taskInvoice ON taskInvoice.account_sets_id = ffas.id
+                WHERE
+                    ffas.vat_type = :vatType
+                    AND ffas.deactivated IS FALSE
+                    AND ffuas.user_id = :userId
+                ORDER BY
+                    ffas.province,
+                    ffas.company_name
+            ]]>
+        </value>
+    </sql>
+
+    <!-- 读取应申报税费种信息的任务（供另一个系统查询：返回尚未同步过应申报税费种的账套；另一系统抓取后通过 saveTaxDeclare 回传存库）
+         省份轮询：min_first_sort_one 越小越先执行；每次该省被执行后调用 updateTaxBureauAddressAfterExecute 将 execute_count_one+1，
+         当 execute_count_one = max_execute_count_one 时 min_first_sort_one+1 且 execute_count_one 归 0 -->
+    <sql id="getTaxDeclareTask" type="select">
+        <value>
+            <![CDATA[
+            WITH numbered_data AS (
+                SELECT
+                    ffas.id AS accountSetsId,
+                    ffas.credit_code AS creditCode,
+                    ffas.province AS province,
+                    ffas.company_name AS companyName,
+                    ROW_NUMBER() OVER (PARTITION BY ffas.province ORDER BY ffas.id ASC) AS rn,
+                    COALESCE(fftba.min_first_sort_one, 999999) AS min_first_sort_one
+                FROM
+                    fxy_financial_account_sets ffas
+                    LEFT JOIN fxy_financial_user_account_sets ffuas
+                        ON ffas.id = ffuas.account_sets_id
+                    LEFT JOIN fxy_financial_tax_bureau_address fftba
+                        ON ffas.province = fftba.pin_yin
+                WHERE
+                    1 = 1
+                    AND ffas.vat_type = "SMALL_SCALE"
+                    AND ffas.province IN ("anhui",
+                    "beijing",
+                    "chongqing",
+                    "dalian",
+                    "fujian",
+                    "gansu",
+                    "guangdong",
+                    "guangxi",
+                    "guizhou",
+                    "hainan",
+                    "hebei",
+                    "heilongjiang",
+                    "henan",
+                    "hubei",
+                    "hunan",
+                    "jiangsu",
+                    "jiangxi")
+                    AND ffas.deactivated IS FALSE
+                    AND ffuas.user_id IN (
+                        '781841492427305006',
+                        '721059376894490497',
+                        '794487206395019484',
+                        '801504833780875670'
+                    )
+                    AND NOT EXISTS (
+                        SELECT 1
+                        FROM fxy_financial_tax_declare fftd
+                        WHERE ffas.id = fftd.account_sets_id
+                    )
+            )
+            SELECT
+                accountSetsId,
+                creditCode,
+                province,
+                companyName
+            FROM numbered_data
+            ORDER BY
+                min_first_sort_one ASC,
+                province ASC,
+                rn ASC
+            LIMIT 1
+            ]]>
+        </value>
+    </sql>
+    <!-- 这个地方是取完报税条目之后判断是否有需要报的税然后，自动添加上报税任务然后开始读取申报任务然后报， -->
+    <sql id="updateTaxBureauAddressAfterExecute" type="update">
+        <value>
+            <![CDATA[
+            UPDATE fxy_financial_tax_bureau_address
+            SET
+                execute_count_one = IF(
+                    max_execute_count_one IS NOT NULL AND COALESCE(execute_count_one, 0) >= max_execute_count_one,
+                    0,
+                    IF(max_execute_count_one IS NOT NULL AND COALESCE(execute_count_one, 0) + 1 >= max_execute_count_one,
+                       0,
+                       COALESCE(execute_count_one, 0) + 1)),
+                min_first_sort_one = IF(
+                    max_execute_count_one IS NOT NULL
+                    AND (COALESCE(execute_count_one, 0) >= max_execute_count_one
+                         OR COALESCE(execute_count_one, 0) + 1 >= max_execute_count_one),
+                    COALESCE(min_first_sort_one, 0) + 1,
+                    min_first_sort_one)
+            WHERE pin_yin = :province
+            ]]>
+        </value>
+    </sql>
+
+    <sql id="getAgentChannelInformation" type="select">
+        <value>
+            <![CDATA[
+            SELECT
+                ffas.company_name,
+                ffas.province,
+                ffas.credit_code
+            FROM
+                fxy_financial_account_sets ffas
+            WHERE
+                1 = 1
+                AND ffas.deactivated IS FALSE
+                AND EXISTS (
+                    SELECT 1
+                    FROM fxy_financial_user_account_sets a
+                    WHERE a.account_sets_id = ffas.id
+                      AND a.user_id IN (:userIds)
+                )
+                AND EXISTS (
+                    SELECT 1
+                    FROM fxy_financial_agent_channel_information b
+                    WHERE ffas.credit_code = b.credit_code
+                      AND b.function_permissions = :functionPermissions
+                      AND b.service_staff REGEXP :serviceStaffPattern
+                )
+                AND NOT EXISTS (
+                    SELECT 1
+                    FROM fxy_financial_tax_table c
+                    LEFT JOIN fxy_financial_timed_task_tax d
+                        ON c.account_sets_id = d.account_sets_id
+                        AND c.check_date = d.check_date
+                    WHERE c.account_sets_id = ffas.id
+                      AND c.check_date = :checkDate
+                )
+            ORDER BY ffas.province ASC
+            LIMIT 1
+            ]]>
+        </value>
+    </sql>
+</sqltoy>

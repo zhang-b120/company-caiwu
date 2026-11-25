@@ -1,0 +1,11 @@
+apply plugin: "java"
+
+dependencies {
+    compileOnly project(':kernel')
+    compileOnly "com.sagframe:sagacity-sqltoy-spring-starter:${sqltoyVer}"
+    compileOnly 'me.ahoo.cosid:cosid-spring-boot-starter:2.8.1'
+}
+
+jar {
+    enabled = true
+}

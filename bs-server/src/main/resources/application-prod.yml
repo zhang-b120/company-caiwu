@@ -1,0 +1,13 @@
+spring:
+  sqltoy:
+    debug: false
+  datasource:
+    hikari:
+      keepalive-time: 60000
+      max-lifetime: 1500000
+      maximum-pool-size: 200
+      minimum-idle: 10
+
+logging:
+  level:
+    cn.gson: info

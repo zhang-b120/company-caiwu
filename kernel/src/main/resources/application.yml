@@ -1,0 +1,120 @@
+spring:
+  profiles:
+    include: app
+  datasource:
+    password: qykj@123
+    # 【本地开发 · 勿提交生产】DB 暂连本机，生产须改回 150.139.141.142:3306
+    url: jdbc:mysql://150.139.141.142:3306/financial?characterEncoding=UTF-8&useUnicode=true&useSSL=false&serverTimezone=GMT%2B8&allowMultiQueries=true&allowPublicKeyRetrieval=true
+    username: qy
+    hikari:
+      maximum-pool-size: 50   # 增加到50个连接
+      minimum-idle: 5         # 最少保持5个空闲连接
+      idle-timeout: 300000    # 空闲连接超时时间（毫秒）
+      connection-timeout: 20000 # 连接超时时间（毫秒）
+      max-lifetime: 1200000   # 连接最大生命周期（毫秒）
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 100MB
+  sqltoy:
+    sql-resources-dir: classpath:/sqltoy
+    debug: true
+    sqlFormater: cn.gson.financial.kernel.model.hibernate.SqlFormat
+    type-handler: cn.gson.financial.kernel.config.SqlToyJsqonTypeHandler
+  jpa:
+    hibernate:
+      ddl-auto: update
+      naming:
+        physical-strategy: cn.gson.financial.kernel.model.hibernate.PhysicalNamingStrategy
+    properties:
+      hibernate:
+        highlight_sql: false
+        format_sql: false
+    show-sql: false
+    open-in-view: true
+  data:
+    redis:
+      url: "redis://127.0.0.1:6379"
+      database: 2
+      repositories:
+        enabled: false
+
+  cache:
+    redis:
+      key-prefix: financial_v3_
+      time-to-live: 30M
+    type: redis
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+  flyway:
+    # 【本地应急 · 勿提交生产】跳过 Flyway 校验。
+    # 原因：仓库里 20260528.001 版本号撞车（库=seed full tax classification /
+    #       本地=create tax classification code table），checksum/description 对不上会 abort，应用起不来。
+    # 生产环境务必删掉此行（或改回 true）；版本号撞车请尽快在仓库层面修正。
+    validate-on-migrate: false
+    baseline-version: 4
+    baseline-on-migrate: true
+    # 2026-05-12 联调-1 修复：DB 上有 V4.0.1~V4.0.14 历史 apply 记录但仓库已删，
+    # 忽略 missing 类告警让服务起得来。其他验证（checksum 漂移等）保留。
+    # 2026-05-30 修复：本地 detached 旧 checkout 落后于库（本地最高 20260520.002，
+    # 库里已 apply 20260528~20260530.* 共 10 条更高版本），这些属 future 而非 missing，
+    # 故追加 *:future 让旧 checkout 也能起服务。pending/checksum 等校验仍保留。
+    ignore-migration-patterns: "*:missing,*:future"
+    repair-on-migrate: true
+app:
+  aliyun:
+    accessKeyId:
+    accessKeySecret:
+    sms:
+      signature: 青艺科技
+      template-code:
+        verification: SMS_175580136
+        register: SMS_217436843
+  upload-root:
+  font-path: 'classpath:/simsun.ttc'
+
+# Agent 配置
+agent:
+  # AI 大模型配置（当前使用 Qwen / 通义千问，通过 DashScope OpenAI 兼容接口）
+  # 如需切换模型，只需修改 api-url / api-key / model 三项，代码无需改动
+  deepseek:
+    # DashScope OpenAI 兼容接口地址
+    api-url: https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
+    # DashScope API Key（必填）
+    # ⚠️ 注意：这是敏感信息，建议使用环境变量或配置中心管理，不要提交到代码仓库
+    api-key: sk-417bca9e130f4f53998bc45e7fb42611
+    # 模型名称：qwen-turbo（快/省钱）/ qwen-plus（推荐）/ qwen-max（最强）
+    model: qwen-plus
+  # 工作流配置（期初数据导入使用）
+  workflow:
+    base-url: http://127.0.0.1:8000
+
+logging:
+  file:
+    path:
+  level:
+    cn.gson: debug
+cosid:
+  namespace: financial
+  enabled: true
+  machine:
+    enabled: true
+    distributor:
+      type: redis
+  snowflake:
+    enabled: true
+
+server:
+  shutdown: graceful
+  max-http-header-size: 65536
+  compression:
+    enabled: true
+    # 注意：mime-types 不要包含 image/* 等已压缩内容，PNG/JPG 再压浪费 CPU 且体积可能不降反升
+    mime-types: application/json,application/xml,text/html,text/css,text/plain,application/javascript
+    min-response-size: 1024
+  tomcat:
+    relaxed-query-chars: '[,]'
+

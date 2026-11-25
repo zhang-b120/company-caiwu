@@ -1,0 +1,16 @@
+package cn.gson.financial.kernel.model.repo;
+
+import cn.gson.financial.kernel.model.entity.AccountSetsAccountingStatus;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
+
+public interface AccountSetsAccountingStatusRepository extends JpaRepository<AccountSetsAccountingStatus, Long> {
+
+    Optional<AccountSetsAccountingStatus> findByAccountSetsIdAndPeriod(Long accountSetsId, LocalDate period);
+
+    List<AccountSetsAccountingStatus> findByAccountSetsIdIn(List<Long> accountSetsIds);
+}
+

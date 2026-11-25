@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="utf-8"?>
+<sqltoy xmlns="http://www.sagframe.com/schema/sqltoy"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.sagframe.com/schema/sqltoy http://www.sagframe.com/schema/sqltoy/sqltoy.xsd">
+    <sql id="selectAllList" type="select">
+        <value>
+            <![CDATA[
+            select
+                t.task_time as taskTime,
+                t.task_type as taskType,
+                t.task_id as taskId,
+                t.task_creater_name as taskCreaterName,
+                t.task_all_count as taskAllCount,
+                t.task_success_count taskSuccessCount,
+                t.task_fail_count as taskFailCount,
+                t.task_all_count - t.task_success_count -t.task_fail_count as taskUnCounts
+            from
+                financial.fxy_financial_all_task t
+            where 1=1
+                #[t.task_time = :taskTime]
+                #[and t.task_creater_name = :taskCreaterName]
+            order by task_time desc
+            ]]>
+        </value>
+    </sql>
+
+    <sql id="selectItemList" type="select">
+        <value>
+            <![CDATA[
+            select
+    task_item_id as taskItemId,
+	company_name as companyName,
+	task_item_log as taskItemLog,
+	t.task_item_status as taskItemstatus,
+	task_params as taskParams
+from
+	fxy_financial_task_item t
+where 1=1
+	#[t.task_id = :taskId]
+	#[and t.task_item_status = :taskItemstatus]
+	order by task_item_status desc
+            ]]>
+        </value>
+    </sql>
+
+    <sql id="insertTask">
+        <value>
+      <![CDATA[
+
+            INSERT
+                INTO
+                financial.fxy_financial_all_task
+                (task_id,
+                task_time,
+                task_type,
+                task_all_count,
+                task_success_count,
+                task_fail_count,
+                task_creater_name)
+            VALUES(
+            :taskId,
+            :taskTime,
+            :taskType,
+            :taskAllCount,
+            :taskSuccessCount,
+            :taskFailCount,
+            :taskCreaterName)
+
+
+            ]]>
+    </value>
+    </sql>
+    <sql id="insertTaskItem">
+        <value>
+            <![CDATA[
+
+            INSERT
+                INTO
+                financial.fxy_financial_task_item
+                (
+                task_item_id,
+                task_id,
+                account_sets_id,
+                company_name,
+                task_item_log,
+                task_item_status,
+                task_params,
+                invoice_start_date,
+                invoice_end_date,
+                invoice_type
+                )
+            VALUES(
+            :taskItemId,
+            :taskId,
+            :accountSetId,
+            :companyName,
+            :taskItemLog,
+            :taskItemStatus,
+            :taskParams,
+            :invoiceStartDate,
+            :invoiceEndDate,
+            :invoiceType
+            )
+            ]]>
+        </value>
+    </sql>
+
+    <sql id="updateById">
+        <value>
+            <![CDATA[
+            update financial.fxy_financial_all_task set task_success_count = :taskSuccessCount,
+                task_fail_count = :taskFailCount where task_id = :taskId
+            ]]>
+        </value>
+    </sql>
+    <sql id="reUpdateAllById">
+        <value>
+            <![CDATA[
+            update financial.fxy_financial_all_task set task_success_count = :taskSuccessCount + task_success_count,
+                task_fail_count = task_fail_count - :task_success_count  where task_id = :taskId
+            ]]>
+        </value>
+    </sql>
+    <sql id="reUpdateItemById">
+        <value>
+            <![CDATA[
+            update financial.fxy_financial_task_item set task_item_log = :taskItemLog,
+                task_item_status = :taskItemStatus where task_item_id = :taskItemId
+            ]]>
+        </value>
+    </sql>
+    <sql id="selectAllListByDate">
+        <value>
+            <![CDATA[
+                    SELECT
+                      invoice_type AS invoiceType ,MAX(b.task_time) AS taskTime
+                    FROM
+                      `fxy_financial_task_item` a
+                    LEFT JOIN fxy_financial_all_task b
+                    ON  a.task_id=b.task_id
+                    WHERE
+                      :searchDate >= invoice_start_date
+                      AND :searchDate <= invoice_end_date
+                      AND account_sets_id = :accountSetsId
+                      AND task_item_status = '1'
+                    GROUP BY
+                      invoice_type
+            ]]>
+        </value>
+    </sql>
+</sqltoy>

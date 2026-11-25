@@ -1,0 +1,9 @@
+【卖方上下文】（按账套自动取，不可改）
+{{sellerContext}}
+
+【开票偏好】
+票种偏好：{{invoiceTypePref}}
+载体偏好：{{carrierPref}}
+{{commonItemsBlock}}
+【开票信息（多张 / 一对多；可能是"购方+金额"清单，或含多张开票要求的文件）】（严禁从这里编造未出现的税号）
+{{userText}}

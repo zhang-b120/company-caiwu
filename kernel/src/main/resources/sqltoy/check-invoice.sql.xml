@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<sqltoy xmlns="http://www.sagframe.com/schema/sqltoy"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.sagframe.com/schema/sqltoy http://www.sagframe.com/schema/sqltoy/sqltoy.xsd">
+    <sql id="updateByInvoiceNumber">
+        <value>
+            <![CDATA[
+                 update financial.fxy_financial_invoice  set #[check_ri_qi = :checkRiQi,]show_status = :showStatus #[,assignment_date = :assignmentDate] WHERE  invoice_number =:invoiceNumber or invoice_number= :invoiceNumber1
+            ]]>
+        </value>
+    </sql>
+</sqltoy>

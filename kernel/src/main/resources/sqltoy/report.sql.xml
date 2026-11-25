@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8"?>
+<sqltoy xmlns="http://www.sagframe.com/schema/sqltoy"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.sagframe.com/schema/sqltoy http://www.sagframe.com/schema/sqltoy/sqltoy.xsd">
+    <sql id="quarterBeginBalance" type="select">
+        <value>
+            <![CDATA[
+            select account_sets_id,
+                   subject_id,
+                   currency_id,
+                   begin_balance,
+                   begin_balance_for,
+                   begin_quantity
+            from `@value(:balanceTableName)`
+            where account_sets_id = :accountSetsId
+              and auxiliary_detail_id = 0
+              and date = :startDate
+              and currency_id = :currencyId
+            ]]>
+        </value>
+    </sql>
+    <sql id="quarterCurrentBalance" type="select">
+        <value>
+            <![CDATA[
+            select account_sets_id,
+                   subject_id,
+                   currency_id,
+                   sum(credit)          as credit,
+                   sum(credit_for)      as credit_for,
+                   sum(credit_quantity) as credit_quantity,
+                   sum(debit)           as debit,
+                   sum(debit_for)       as debit_for,
+                   sum(debit_quantity)  as debit_quantity
+            from `@value(:balanceTableName)`
+            where account_sets_id = :accountSetsId
+              and auxiliary_detail_id = 0
+              and date between :startDate
+                and :endDate
+              and currency_id = :currencyId
+            group by account_sets_id, subject_id, currency_id
+            ]]>
+        </value>
+    </sql>
+    <sql id="quarterEndBalance" type="select">
+        <value>
+            <![CDATA[
+            select account_sets_id,
+                   subject_id,
+                   currency_id,
+                   end_balance,
+                   end_balance_for,
+                   end_quantity,
+                   year_total,
+                   year_total_credit,
+                   year_total_credit_for,
+                   year_total_credit_quantity,
+                   year_total_debit,
+                   year_total_debit_for,
+                   year_total_debit_quantity,
+                   year_total_for,
+                   year_total_quantity
+            from `@value(:balanceTableName)`
+            where account_sets_id = :accountSetsId
+              and auxiliary_detail_id = 0
+              and date = (select max(date)
+                          from `@value(:balanceTableName)` f
+                          where f.date <= :endDate
+                            and f.account_sets_id = :accountSetsId)
+              and currency_id = :currencyId
+            ]]>
+        </value>
+    </sql>
+
+    <!--近30天每天用户注册人数-->
+    <sql id="chartUser30RegNum">
+        <value>
+      <![CDATA[
+            select date_format(ffu.create_date, '%m/%d') as day, count(1) total
+            from fxy_financial_user ffu
+            where ffu.create_date >= :date
+            group by date_format(ffu.create_date, '%m/%d')
+            order by min(ffu.create_date) asc
+            ]]>
+    </value>
+    </sql>
+
+    <sql id="chartAgentUser30RegNum">
+        <value>
+      <![CDATA[
+            select date_format(ffau.relate_date, '%m/%d') as day, count(1) total
+            from fxy_financial_agent_user ffau
+            where ffau.relate_date >= : date
+              and ffau.agent_id = : agentId
+            group by date_format(ffau.relate_date, '%Y-%m-%d')
+            order by ffau.relate_date asc
+            ]]>
+    </value>
+    </sql>
+
+    <!--近30天每天账套注册人数-->
+    <sql id="chartAst30NewNum">
+        <value>
+      <![CDATA[
+            select date_format(ffas.create_date, '%m/%d') as day, count(1) total
+            from fxy_financial_account_sets ffas
+            where ffas.create_date >= :date
+            group by date_format(ffas.create_date, '%m/%d')
+            order by min(ffas.create_date) asc
+            ]]>
+    </value>
+    </sql>
+
+    <sql id="chartAstByUser30NewNum">
+        <value>
+      <![CDATA[
+            select date_format(ffas.create_date, '%m/%d') as day, count(1) total
+            from fxy_financial_account_sets ffas
+                     left join fxy_financial_agent_user ffau
+                               on ffas.creator_id = ffau.user_id
+            where ffas.create_date >= : date
+              and ffau.agent_id = : agentId
+            group by date_format(ffas.create_date, '%Y-%m-%d')
+            order by ffas.create_date asc
+            ]]>
+    </value>
+    </sql>
+
+    <sql id="insertBi" type="insert">
+        <value>
+      <![CDATA[
+            INSERT INTO `fxy_financial_bi_report` (`account_sets_id`, `id`, `config`, `create_time`, `name`, `pos`, `tag`, `update_time`, `vars`, `cells`, `remark`)
+            VALUES (:accountSetsId, :id, :config, :createTime, :name, :pos, :tag, :updateTime, :vars, :cells, :remark)
+            ]]>
+    </value>
+    </sql>
+</sqltoy>

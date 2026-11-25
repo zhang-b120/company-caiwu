@@ -1,0 +1,582 @@
+<?xml version="1.0" encoding="utf-8"?>
+<sqltoy xmlns="http://www.sagframe.com/schema/sqltoy"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.sagframe.com/schema/sqltoy http://www.sagframe.com/schema/sqltoy/sqltoy.xsd">
+
+    <!--期间科目列表-->
+    <sql id="ab-subjectList">
+        <value>
+            <![CDATA[
+            SELECT DISTINCT ffs.`id`,
+                            ffs.`code`,
+                            ffs.full_name,
+                            ffs.parent_id,
+                            ffs.query_code,
+                            ffs.unit,
+                            ffs.leaf,
+                            CONCAT(ffs.`code`, ' ', ffs.`name`) as name
+            FROM fxy_financial_balance AS ffb
+                     INNER JOIN fxy_financial_subject AS ffs
+                                ON ffs.account_sets_id = ffb.account_sets_id AND ffs.id = ffb.subject_id
+            WHERE ffs.account_sets_id = :accountSetsId
+              and ffs.status = 1
+              #[@if(:showNumPrice==true) and length(ffs.unit) > 0]
+              #[AND ffb.currency_id = :currencyId]
+              #[AND ffb.auxiliary_detail_id = :detailId]
+              #[AND ffb.date BETWEEN :start AND :end]
+              #[AND ffs.`level` BETWEEN :levelStart AND :levelEnd]
+              #[@if(:subjectStart!=null && :subjectEnd!=null) AND ffs.query_code BETWEEN :subjectStart and :subjectEnd]
+              #[@if(:subjectStart!=null && :subjectEnd==null) AND ffs.query_code >= :subjectStart]
+              #[@if(:subjectEnd!=null && :subjectStart==null) AND ffs.query_code <= :subjectEnd]
+              and (
+                ffb.begin_balance <> 0
+                    or ffb.begin_balance_for <> 0
+                    or ffb.year_total <> 0
+                    or ffb.credit <> 0
+                    or ffb.debit <> 0
+                    or ffb.year_total_credit <> 0
+                    or ffb.year_total_debit <> 0
+                    or ffb.year_total_debit_for <> 0
+                    or ffb.year_total_credit_for <> 0
+                    or ffb.end_balance <> 0
+                    or ffb.end_balance_for <> 0
+                )
+            order by ffs.query_code
+            ]]>
+        </value>
+    </sql>
+
+    <!--期间辅助项列表-->
+    <sql id="ab-auxiliaryList">
+        <filters>
+            <to-string params="categoryType" add-quote="double"/>
+            <to-string params="categoryId" add-quote="double"/>
+            <to-string params="detailId" add-quote="double"/>
+        </filters>
+        <value>
+            <![CDATA[
+            SELECT DISTINCT ffb.auxiliary_detail_id, ffad.details, ffb.subject_id
+            FROM fxy_financial_balance AS ffb
+                     INNER JOIN fxy_financial_subject AS ffs ON ffs.account_sets_id = ffb.account_sets_id AND ffs.id = ffb.subject_id
+                     INNER JOIN fxy_financial_auxiliary_detail AS ffad ON ffad.account_sets_id = ffb.account_sets_id AND ffad.id = ffb.auxiliary_detail_id
+            WHERE ffb.account_sets_id = :accountSetsId
+              and ffb.auxiliary_detail_id <> 0
+            #[and ffs.code like :subjectCode]
+            #[AND ffb.currency_id = :currencyId]
+            #[AND ffb.date BETWEEN :start AND :end]
+            #[AND json_contains(ffad.details -> '$[*].categoryType', :categoryType) = 1]
+            #[AND json_contains(ffad.details -> '$[*].categoryId', :categoryId) = 1]
+            #[AND json_contains(ffad.details -> '$[*].value', :detailId) = 1]
+            ]]>
+        </value>
+    </sql>
+
+
+    <!--期间辅助项列表-->
+    <sql id="ab-auxiliary-id-list">
+        <filters>
+            <to-string params="categoryType" add-quote="double"/>
+            <to-string params="categoryId" add-quote="double"/>
+            <to-string params="detailId" add-quote="double"/>
+        </filters>
+        <value>
+            <![CDATA[
+            SELECT DISTINCT ffb.auxiliary_detail_id, ffb.subject_id,ffs.query_code
+            FROM fxy_financial_balance AS ffb
+                     INNER JOIN fxy_financial_subject AS ffs ON ffs.account_sets_id = ffb.account_sets_id AND ffs.id = ffb.subject_id
+                     INNER JOIN fxy_financial_auxiliary_detail AS ffad ON ffad.account_sets_id = ffb.account_sets_id AND ffad.id = ffb.auxiliary_detail_id
+            WHERE ffb.account_sets_id = :accountSetsId
+              and ffb.auxiliary_detail_id <> 0
+              and ffs.leaf = 1
+            #[and ffs.code like :subjectCode]
+            #[AND ffb.subject_id = :subjectId]
+            #[AND ffb.currency_id = :currencyId]
+            #[AND ffb.date BETWEEN :start AND :end]
+            #[AND json_contains(ffad.details -> '$[*].categoryType', :categoryType) = 1]
+            #[AND json_contains(ffad.details -> '$[*].categoryId', :categoryId) = 1]
+            #[AND json_contains(ffad.details -> '$[*].value', :detailId) = 1]
+            order by ffs.query_code
+            ]]>
+        </value>
+    </sql>
+
+    <!--期间辅助项列表-->
+    <sql id="ab-auxiliaryIdList">
+        <filters>
+            <to-string params="categoryType" add-quote="double"/>
+            <to-string params="categoryId" add-quote="double"/>
+            <to-string params="detailId" add-quote="double"/>
+        </filters>
+        <value>
+            <![CDATA[
+            SELECT ffad.id as id
+            FROM fxy_financial_auxiliary_detail AS ffad
+            WHERE ffad.account_sets_id = :accountSetsId
+            #[AND json_contains(ffad.details -> '$[*].categoryType', :categoryType) = 1]
+            #[AND json_contains(ffad.details -> '$[*].categoryId', :categoryId) = 1]
+            #[AND json_contains(ffad.details -> '$[*].value', :detailId) = 1]
+            ]]>
+        </value>
+    </sql>
+
+    <!--辅助项列表-->
+    <sql id="auxiliaryList">
+        <filters>
+            <to-string params="categoryType" add-quote="double"/>
+            <to-string params="categoryId" add-quote="double"/>
+            <to-string params="detailId" add-quote="double"/>
+        </filters>
+        <value>
+            <![CDATA[
+            SELECT ffad.id as id, ffad.details
+            FROM fxy_financial_auxiliary_detail AS ffad
+            WHERE ffad.account_sets_id = :accountSetsId
+              and ffad.id in (:auxiliaryDetailId)
+            #[AND json_contains(ffad.details -> '$[*].categoryType', :categoryType) = 1]
+            #[AND json_contains(ffad.details -> '$[*].categoryId', :categoryId) = 1]
+            #[AND json_contains(ffad.details -> '$[*].value', :detailId) = 1]
+            ]]>
+        </value>
+    </sql>
+
+    <!--明细账-->
+    <sql id="ab-details">
+        <value>
+            <![CDATA[
+            SELECT ffvd.`subject_id`,
+                   ffs.full_name     as subjectName,
+                   ffs.name           as subjectSortName,
+                   ffs.code           as subjectCode,
+                   ffv.word,
+                   ffv.code,
+                   ffvd.voucher_id,
+                   ffvd.summary,
+                   ffvd.debit_amount  as debit_amount,
+                   ffvd.credit_amount as credit_amount,
+                   ffvd.debit_num    as debit_num,
+                   ffvd.credit_num   as credit_num,
+                   ffvd.num           as num,
+                   ffvd.price         as price,
+                   ffc.name          as currency,
+                   ffc.exchange_rate as currencyRate,
+                   ffvd.currency_id,
+                   ffvd.voucher_date
+            FROM fxy_financial_voucher_details AS ffvd
+                     left join fxy_financial_currency AS ffc on ffc.account_sets_id = ffvd.account_sets_id and ffc.id = ffvd.currency_id
+                     INNER JOIN fxy_financial_voucher AS ffv ON ffvd.account_sets_id = ffv.account_sets_id AND ffv.id = ffvd.voucher_id
+                     INNER JOIN fxy_financial_subject AS ffs ON ffvd.account_sets_id = ffs.account_sets_id AND ffs.id = ffvd.subject_id
+            WHERE ffvd.account_sets_id = :accountSetsId
+            #[and ffvd.subject_id in (select ffs.id from fxy_financial_subject ffs where ffs.account_sets_id = :accountSetsId and ffs.code like concat((select code from fxy_financial_subject ffs where ffs.account_sets_id = :accountSetsId and ffs.id= :subjectId),'%') and ffs.leaf = 1)]
+            #[and ffvd.auxiliary_detail_id in (:detailIds)]
+            #[and ffvd.summary like :summary]
+            #[and ffvd.currency_id = :currencyId]
+            #[AND ffvd.voucher_date BETWEEN :start AND :end]
+            order by ffv.code, ffvd.voucher_date
+            ]]>
+        </value>
+    </sql>
+
+    <!--明细账期初-->
+    <sql id="ab-details-begin-balance">
+        <value>
+            <![CDATA[
+            SELECT sum(ffb.year_total_credit)                                                              as credit,
+                   sum(ffb.year_total_debit)                                                               as debit,
+                   sum(ffb.end_balance)                                                                    as end_balance,
+                   sum(ffb.end_balance_for)                                                                as end_balance_for,
+                   sum(ffb.end_credit_quantity)                                                            as credit_num,
+                   sum(CAST(ffb.year_total_credit AS decimal)) / sum(CAST(ffb.end_credit_quantity AS decimal)) as credit_price,
+                   sum(ffb.end_debit_quantity)                                                             as debit_num,
+                   sum(CAST(ffb.year_total_debit AS decimal)) / sum(CAST(ffb.end_debit_quantity AS decimal))   as debit_price,
+                   sum(ffb.end_quantity)                                                                   as num,
+                   sum(CAST(ffb.end_balance AS decimal)) / sum(CAST(ffb.end_quantity AS decimal))              as price
+            FROM fxy_financial_balance AS ffb
+            WHERE ffb.account_sets_id = :accountSetsId
+              #[and ffb.auxiliary_detail_id in (:detailIds)]
+              #[and ffb.subject_id = :subjectId]
+              #[and ffb.currency_id = :currencyId]
+              and ffb.year = :year
+              and ffb.period = :month
+            limit 1
+            ]]>
+        </value>
+    </sql>
+
+    <!--明细账期初-->
+    <sql id="ab-details-begin-initial-balance">
+        <value>
+            <![CDATA[
+            SELECT ffb.year_total_credit          as credit,
+                   ffb.year_total_credit_for      as credit_for,
+                   ffb.year_total_debit           as debit,
+                   ffb.year_total_debit_for       as debit_for,
+                   ffb.begin_balance              as end_balance,
+                   ffb.begin_balance_for          as end_balance_for,
+                   ffb.year_total_credit_quantity as credit_num,
+                   CAST(ffb.year_total_credit AS decimal) / CAST(ffb.year_total_credit_quantity AS decimal) as credit_price,
+                   ffb.year_total_debit_quantity  as debit_num,
+                   CAST(ffb.year_total_debit AS decimal) / CAST(ffb.year_total_debit_quantity AS decimal)   as debit_price,
+                   ffb.begin_quantity             as num,
+                   CAST(ffb.begin_balance AS decimal) / CAST(ffb.begin_quantity AS decimal)                 as price
+            FROM fxy_financial_balance_initial AS ffb
+            WHERE ffb.account_sets_id = :accountSetsId
+            #[and ffb.auxiliary_detail_id in (:detailIds)]
+            #[ and ffb.subject_id = :subjectId]
+            #[and ffb.currency_id = :currencyId]
+            limit 1
+            ]]>
+        </value>
+    </sql>
+
+    <!--明细账期初-->
+    <sql id="ab-auxiliary-details-begin-balance">
+        <value>
+            <![CDATA[
+            SELECT ffb.year_total_credit,
+                   ffb.year_total_credit_for,
+                   ffb.year_total_debit,
+                   ffb.year_total_debit_for,
+                   ffb.begin_balance,
+                   ffb.begin_balance_for
+            FROM fxy_financial_balance AS ffb
+            WHERE ffb.account_sets_id = :accountSetsId
+              and ffb.subject_id = :subjectId
+              and ffb.auxiliary_detail_id in (:detailIds)
+              and ffb.currency_id = :currencyId
+              and ffb.year = :year
+              and ffb.period = :month
+            limit 1
+            ]]>
+        </value>
+    </sql>
+
+    <!--明细账期初-->
+    <sql id="ab-auxiliary-details-begin-initial-balance">
+        <value>
+            <![CDATA[
+            SELECT ffb.year_total_credit,
+                   ffb.year_total_credit_for,
+                   ffb.year_total_debit,
+                   ffb.year_total_debit_for,
+                   ffb.begin_balance,
+                   ffb.begin_balance_for
+            FROM fxy_financial_balance_initial AS ffb
+            WHERE ffb.account_sets_id = :accountSetsId
+              and ffb.subject_id = :subjectId
+              and ffb.auxiliary_detail_id in (:detailIds)
+              and ffb.currency_id = :currencyId
+            limit 1
+            ]]>
+        </value>
+    </sql>
+
+    <!--总账-->
+    <sql id="ab-generalLedger">
+        <value>
+            <![CDATA[
+            SELECT ffs.`code`,
+                   ffs.`full_name`                   as subjectName,
+                   ffs.`unit`                                                           as unit,
+                   ffb.subject_id,
+                   ffb.begin_balance,
+                   ffb.begin_balance_for,
+                   ffb.end_balance,
+                   ffb.end_balance_for,
+                   ffb.credit_for,
+                   ffb.credit,
+                   ffb.debit,
+                   ffb.debit_for,
+                   ffb.year_total_debit,
+                   ffb.year_total_credit,
+                   ffb.year_total_debit_for,
+                   ffb.year_total_credit_for,
+                   ffs.balance_direction,
+                   ffb.begin_quantity,
+                   CAST(ffb.begin_balance AS decimal) / CAST(ffb.begin_quantity AS decimal) as begin_price,
+                   CAST(ffb.end_balance AS decimal) / CAST(ffb.end_quantity AS decimal)     as end_price,
+                   ffb.end_quantity,
+                   ffb.year_total_quantity,
+                   ffb.year_total_credit_quantity,
+                   ffb.year_total_debit_quantity,
+                   ffb.debit_quantity,
+                   ffb.credit_quantity,
+                   ffb.end_debit_quantity,
+                   ffb.end_credit_quantity,
+                   date_format(ffb.date, '%Y年%m月') as date
+            FROM fxy_financial_balance AS ffb
+                     INNER JOIN fxy_financial_subject AS ffs ON ffb.account_sets_id = ffs.account_sets_id AND ffb.subject_id = ffs.id
+            WHERE ffs.account_sets_id = :accountSetsId
+              and ffb.subject_id in (:subjectId)
+              and ffb.currency_id = :currencyId
+              and ffb.auxiliary_detail_id = :detailId
+            #[AND ffb.date BETWEEN :start AND :end]
+            order by ffs.query_code, ffb.date
+            ]]>
+        </value>
+    </sql>
+
+    <!--科目余额表,跨期查询-->
+    <sql id="ab-subject-balance-block">
+        <value>
+            <![CDATA[
+            SELECT 'begin'        as type,
+                   ffs.`code`     as subjectCode,
+                   ffs.`leaf`     as leaf,
+                   ffs.`query_code`,
+                   ffs.`name`     as subjectName,
+                   ffb.subject_id,
+                   ffb.subject_id as treeId,
+                   ffs.parent_id  as parentTreeId,
+                   ffb.auxiliary_detail_id,
+                   0              as credit_for,
+                   0              as credit,
+                   0              as debit,
+                   0              as debit_for,
+                   0              as credit_quantity,
+                   0              as debit_quantity,
+                   0              as year_total_debit,
+                   0              as year_total_credit,
+                   0              as year_total_debit_for,
+                   0              as year_total_credit_for,
+                   0              as year_total_debit_quantity,
+                   0              as year_total_credit_quantity,
+                   ffb.begin_balance,
+                   ffb.begin_balance_for,
+                   ffb.begin_quantity,
+                   0              as end_balance_for,
+                   0              as end_balance,
+                   0              as end_quantity,
+                   ffs.balance_direction
+            FROM fxy_financial_balance AS ffb
+                     INNER JOIN fxy_financial_subject AS ffs ON ffb.account_sets_id = ffs.account_sets_id AND ffb.subject_id = ffs.id
+            WHERE ffs.account_sets_id = :accountSetsId
+              #[and ffb.subject_id in (:subjectId)]
+              and ffb.currency_id = :currencyId
+              #[and ffb.auxiliary_detail_id = :detailId]
+              #[and ffb.auxiliary_detail_id in (:detailIds)]
+              #[@if(:auxiliary==true) and ffb.auxiliary_detail_id <> 0]
+              and ffb.year = :byear
+              and ffb.period = :bperiod
+            union all
+            SELECT 'current'                as type,
+                   ffs.`code`               as subjectCode,
+                   ffs.`leaf`               as leaf,
+                   ffs.`query_code`,
+                   ffs.`name`               as subjectName,
+                   ffb.subject_id,
+                   ffb.subject_id           as treeId,
+                   ffs.parent_id            as parentTreeId,
+                   ffb.auxiliary_detail_id,
+                   sum(ffb.credit_for)      as credit_for,
+                   sum(ffb.credit)          as credit,
+                   sum(ffb.debit)           as debit,
+                   sum(ffb.debit_for)       as debit_for,
+                   sum(ffb.credit_quantity) as credit_quantity,
+                   sum(ffb.debit_quantity)  as debit_quantity,
+                   0                        as year_total_debit,
+                   0                        as year_total_credit,
+                   0                        as year_total_debit_for,
+                   0                        as year_total_credit_for,
+                   0                        as year_total_debit_quantity,
+                   0                        as year_total_credit_quantity,
+                   0                        as begin_balance,
+                   0                        as begin_balance_for,
+                   0                        as begin_quantity,
+                   0                        as end_balance_for,
+                   0                        as end_balance,
+                   0                        as end_quantity,
+                   ffs.balance_direction
+            FROM fxy_financial_balance AS ffb
+                     INNER JOIN fxy_financial_subject AS ffs ON ffb.account_sets_id = ffs.account_sets_id AND ffb.subject_id = ffs.id
+            WHERE ffs.account_sets_id = :accountSetsId
+              #[and ffb.subject_id in (:subjectId)]
+              and ffb.currency_id = :currencyId
+            #[and ffb.auxiliary_detail_id = :detailId]
+            #[and ffb.auxiliary_detail_id in (:detailIds)]
+            #[@if(:auxiliary==true) and ffb.auxiliary_detail_id <> 0]
+            #[AND ffb.date BETWEEN :start AND :end]
+            group by ffb.subject_id, ffb.auxiliary_detail_id, ffb.currency_id
+            union all
+            SELECT 'end'                          as type,
+                   ffs.`code`                     as subjectCode,
+                   ffs.`leaf`                     as leaf,
+                   ffs.`query_code`,
+                   ffs.`name`                     as subjectName,
+                   ffb.subject_id,
+                   ffb.subject_id                 as treeId,
+                   ffs.parent_id                  as parentTreeId,
+                   ffb.auxiliary_detail_id,
+                   0                              as credit_for,
+                   0                              as credit,
+                   0                              as debit,
+                   0                              as debit_for,
+                   0                              as credit_quantity,
+                   0                              as debit_quantity,
+                   ffb.year_total_debit           as year_total_debit,
+                   ffb.year_total_credit          as year_total_credit,
+                   ffb.year_total_debit_for       as year_total_debit_for,
+                   ffb.year_total_credit_for      as year_total_credit_for,
+                   ffb.year_total_debit_quantity  as year_total_debit_quantity,
+                   ffb.year_total_credit_quantity as year_total_credit_quantity,
+                   0                              as begin_balance,
+                   0                              as begin_balance_for,
+                   0                              as begin_quantity,
+                   ffb.end_balance_for,
+                   ffb.end_balance,
+                   ffb.end_quantity,
+                   ffs.balance_direction
+            FROM fxy_financial_balance AS ffb
+                     INNER JOIN fxy_financial_subject AS ffs ON ffb.account_sets_id = ffs.account_sets_id AND ffb.subject_id = ffs.id
+            WHERE ffs.account_sets_id = :accountSetsId
+              #[and ffb.subject_id in (:subjectId)]
+              and ffb.currency_id = :currencyId
+              #[and ffb.auxiliary_detail_id = :detailId]
+              #[@if(:auxiliary==true) and ffb.auxiliary_detail_id <> 0]
+              #[ and ffb.auxiliary_detail_id in (:detailIds)]
+              and ffb.year = :eyear
+              and ffb.period = :eperiod
+            order by query_code
+            ]]> 
+        </value>
+    </sql>
+    <!--科目余额表,非跨期查询-->
+    <sql id="ab-subject-balance-one">
+        <value>
+            <![CDATA[
+            SELECT ffs.`code`     as subjectCode,
+                   ffs.`query_code`,
+                   ffs.`name`     as subjectName,
+                   ffs.leaf       as leaf,
+                   ffb.subject_id,
+                   ffb.subject_id as treeId,
+                   ffs.parent_id  as parentTreeId,
+                   ffb.auxiliary_detail_id,
+                   ffb.credit_for,
+                   ffb.credit,
+                   ffb.debit,
+                   ffb.debit_for,
+                   ffb.year_total_debit,
+                   ffb.year_total_credit,
+                   ffb.year_total_debit_for,
+                   ffb.year_total_credit_for,
+                   ffb.year_total_debit_quantity,
+                   ffb.year_total_credit_quantity,
+                   ffb.credit_quantity,
+                   ffb.debit_quantity,
+                   ffb.begin_balance,
+                   ffb.begin_balance_for,
+                   ffb.begin_quantity,
+                   ffb.end_balance_for,
+                   ffb.end_balance,
+                   ffb.end_quantity,
+                   ffs.balance_direction,
+                   ffb.id
+            FROM fxy_financial_balance AS ffb
+                     INNER JOIN fxy_financial_subject AS ffs ON ffb.account_sets_id = ffs.account_sets_id AND ffb.subject_id = ffs.id
+            WHERE ffs.account_sets_id = :accountSetsId
+              #[and ffb.subject_id in (:subjectId)]
+              and ffb.currency_id = :currencyId
+              #[and ffb.auxiliary_detail_id = :detailId]
+              #[@if(:auxiliary==true) and ffb.auxiliary_detail_id <> 0]
+              #[and ffb.auxiliary_detail_id in (:detailIds)]
+              and ffb.year = :year
+              and ffb.period = :period
+            order by ffs.query_code
+            ]]>
+        </value>
+    </sql>
+    <!--科目汇总-->
+    <sql id="ab-subject-summary">
+        <value>
+            <![CDATA[
+            SELECT ffs.`code`               as subjectCode,
+                   ffs.`query_code`,
+                   ffs.`full_name`          as subjectName,
+                   ffb.subject_id,
+                   ffs.unit,
+                   ffb.subject_id           as treeId,
+                   ffs.parent_id            as parentTreeId,
+                   ffb.auxiliary_detail_id,
+                   sum(ffb.credit_for)      as credit_for,
+                   sum(ffb.credit)          as credit,
+                   sum(ffb.debit)           as debit,
+                   sum(ffb.debit_for)       as debit_for,
+                   sum(ffb.credit_quantity) as credit_quantity,
+                   sum(ffb.debit_quantity)  as debit_quantity
+            FROM fxy_financial_balance AS ffb
+                     INNER JOIN fxy_financial_subject AS ffs ON ffb.account_sets_id = ffs.account_sets_id AND ffb.subject_id = ffs.id
+            WHERE ffs.account_sets_id = :accountSetsId
+              and ffb.subject_id in (:subjectId)
+              and ffs.level = 1
+              #[and ffb.currency_id = :currencyId]
+              and ffb.auxiliary_detail_id = :detailId
+            #[AND ffb.date BETWEEN :start AND :end]
+            group by ffs.`code`, ffs.`query_code`, ffs.`full_name`, ffb.subject_id, ffs.unit, ffb.subject_id, ffs.parent_id, ffb.auxiliary_detail_id
+            having sum(ffb.debit) <> 0
+                or sum(ffb.credit) <> 0
+                or sum(ffb.credit_for) <> 0
+                or sum(ffb.debit_for) <> 0
+            order by ffs.query_code
+            ]]>
+        </value>
+    </sql>
+    <!--科目汇总的凭证数汇总-->
+    <sql id="ab-subject-voucher-count">
+        <value>
+            <![CDATA[
+            SELECT count(ffv.id) vcount, sum(ffv.receipt_num) rcount
+            FROM fxy_financial_voucher AS ffv
+            where ffv.account_sets_id = :accountSetsId
+              and ffv.id in (select ffvd.voucher_id
+                             from fxy_financial_voucher_details ffvd
+                             where ffvd.account_sets_id = :accountSetsId
+                #[AND ffvd.subject_id in (:subjectId)]
+                #[AND ffvd.voucher_date BETWEEN :start AND :end]
+            )
+            ]]>
+        </value>
+    </sql>
+
+
+    <!--时序账-->
+    <sql id="ab-timeSeries">
+        <value>
+            <![CDATA[
+            select date_format(ffv.voucher_date, '%Y-%m-%d') as voucherDate,
+                   ffvd.voucher_id,
+                   concat(ffv.word, '-', ffv.code) as      word,
+                   ffvd.summary,
+                   coalesce(ffu.real_name, ffu.nickname)   userName,
+                   coalesce(ffau.real_name, ffau.nickname) auditName,
+                   ffs.full_name                   as      subjectName,
+                   ffs.code                        as      subjectCode,
+                   ffvd.subject_id,
+                   ffvd.debit_amount,
+                   ffvd.debit_amount_for,
+                   ffvd.credit_amount,
+                   ffvd.credit_amount_for,
+                   ffvd.num,
+                   ffvd.debit_num,
+                   ffvd.credit_num,
+                   ffvd.num,
+                   ffv.receipt_num,
+                   ffv.remark
+            from fxy_financial_voucher_details ffvd
+                     left join fxy_financial_voucher ffv on ffvd.account_sets_id = ffv.account_sets_id and ffvd.voucher_id = ffv.id
+                     left join fxy_financial_subject ffs on ffvd.account_sets_id = ffs.account_sets_id and ffvd.subject_id = ffs.id
+                     left join fxy_financial_user ffu on ffv.create_member = ffu.id
+                     left join fxy_financial_user ffau on ffv.audit_member_id = ffau.id
+            where ffvd.account_sets_id = :accountSetsId
+            #[and ffvd.subject_id = :subjectId]
+            #[and ffv.create_member = :createMember]
+            #[and ffvd.summary like :summary]
+            #[and ffv.word = :word]
+            #[and (ffvd.debit_amount between :amountStart and :amountEnd or ffvd.credit_amount between :amountStart and :amountEnd)]
+            #[and ffv.code between :codeStart and :codeEnd]
+            #[AND ffv.voucher_date BETWEEN :start AND :end]
+            #[@if(:sort == 'code' ) order by ffv.code]
+            #[@if(:sort == 'voucher_date' ) order by ffv.voucher_date,ffv.word,ffv.code]
+            ]]>
+        </value>
+    </sql>
+</sqltoy>

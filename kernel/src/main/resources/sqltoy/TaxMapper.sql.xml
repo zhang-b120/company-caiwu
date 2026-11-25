@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="utf-8"?>
+<sqltoy xmlns="http://www.sagframe.com/schema/sqltoy"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.sagframe.com/schema/sqltoy http://www.sagframe.com/schema/sqltoy/sqltoy.xsd">
+    <sql id="insertTaxItem" type="insert">
+        <value>
+            <![CDATA[
+                INSERT INTO fxy_financial_tax_table (
+                tax_id,
+                account_sets_id,
+                company_name,
+                tax_type,
+                tax_state,
+                tax_end_time,
+                flag
+            ) VALUES (
+                :taxId,
+                :accountSetsId,
+                :companyName,
+                :taxType,
+                :taxState,
+                :taxEndTime,
+                :flag
+            );
+            ]]>
+        </value>
+    </sql>
+    <sql id="selectTaxItem" type="select">
+        <value>
+            <![CDATA[
+                select
+                distinct
+                t.id as accountSetsId,
+                t.account_standard as accountStandard,
+                t.vat_type as vatType,
+                t.company_name as companyName,
+                t.create_date as createDate,
+                t.creator_id as creatorId,
+                t.credit_code as creditCode,
+                t.enable_date as enableDate,
+                t.current_account_date,
+                t.electricity_tax_code as electricityTaxCode,
+                t.province as province,
+                p.tax_id as taxId,
+                p.tax_end_time as taxEndTime,
+                p.tax_state as taxState,
+                p.tax_type as taxType,
+                d.id as localCurrencyId,
+                trr.img_url as imageUrl,
+                l.total_taxes as totalTaxes,
+                l.tax_payment_html as taxPaymentHtml,
+                l.img_url as paymentUrl,
+                ttt.img_url as taxImageUrl,
+                selfInspection.problem_description as problemDescription,
+                selfInspection.img_url as selfInspectionImgUrl
+                from
+                fxy_financial_account_sets t
+                left join fxy_financial_user_account_sets b on
+                t.id = b.account_sets_id
+                left join fxy_financial_tax_table p on
+                t.id = p.account_sets_id
+                left join fxy_financial_currency d on
+                t.id = d.account_sets_id
+                left join (select
+                  *  from
+                fxy_financial_timed_task_declare_self_inspection  tr where tr.period = :currentDate) as selfInspection  on
+                t.id = selfInspection.account_sets_id
+                left join (select
+                ffttp.*
+                from
+                 fxy_financial_timed_task_payment ffttp
+                inner join
+                (
+                select
+                 max(id) as id,account_sets_id
+                from
+                    fxy_financial_timed_task_payment
+                where
+                 DATE_FORMAT(check_date, '%Y-%m' ) = #[:accountPeriod]
+                group by
+                 account_sets_id,
+                 check_date
+                    ) max_id_payment on max_id_payment.id = ffttp.id)
+                l on
+                 t.id = l.account_sets_id
+                left join (select
+                    ffttt.*
+                from
+                 fxy_financial_timed_task_tax ffttt
+                inner join
+                (
+                select
+                 max(id) as id,account_sets_id
+                from
+                    fxy_financial_timed_task_tax
+                where
+                 DATE_FORMAT(check_date, '%Y-%m' ) = #[:accountPeriod]
+                group by
+                    account_sets_id ,check_date , tax_type ) max_id_tax on max_id_tax.id = ffttt.id) ttt on
+                    ttt.account_sets_id = p.account_sets_id
+                    and p.tax_type = ttt.tax_type
+                left join
+                (select
+                    ffttti.*
+                from
+                    fxy_financial_timed_task_tax_item ffttti
+                inner join
+                (
+                select
+                    max(id) as id,account_sets_id
+                from
+                 fxy_financial_timed_task_tax_item
+                where
+                   DATE_FORMAT(check_date, '%Y-%m' ) = #[:accountPeriod]
+                group by
+                    account_sets_id,
+                    check_date
+                    )  max_id_item on max_id_item.id = ffttti.id
+                ) trr on trr.account_sets_id  = t.id
+                where
+                    1 = 1
+                    and t.deactivated = 0
+
+                    #[AND b.user_id = :userId]
+                    #[AND t.company_name LIKE CONCAT('%', :companyName,'%')]
+                    #[AND t.province = :province]
+                order by
+                    t.id
+            ]]>
+        </value>
+    </sql>
+    <sql id="deleteTaxItem">
+        <value>
+            <![CDATA[
+                DELETE
+                FROM
+                  fxy_financial_tax_table
+                WHERE
+                  account_sets_id = :accountSetsId
+            ]]>
+        </value>
+    </sql>
+    <sql id="invoiceCount" type="select">
+        <value>
+            <![CDATA[
+                  SELECT
+                      COUNT(account_sets_id) AS invoiceCount
+                      FROM
+                        fxy_financial_invoice
+                      WHERE
+                      account_sets_id = :accountSetsId
+                      AND type = 1
+                      AND trade_date BETWEEN :startDate AND :endDate
+                      AND new_category IN (
+                      "数电发票（二手车销售统一发票）",
+                      "数电纸质发票（二手车销售统一发票）",
+                      "二手车销售统一发票")
+            ]]>
+        </value>
+    </sql>
+    <sql id="insertTaxTaskLog" type="insert">
+        <value>
+            <![CDATA[
+                INSERT INTO
+                financial.fxy_financial_tax_task_log
+                (
+                id,
+                user_id,
+                account_sets_id,
+                state,
+                tax_type,
+                company_name,
+                tax_id
+                )
+                VALUES
+                (:id, :userId, :accountSetsId, 0, :taxType, :companyName, :taxId);
+            ]]>
+        </value>
+    </sql>
+
+    <sql id="insertTaxReportResult" type="insert">
+        <value>
+            <![CDATA[
+                INSERT INTO
+                financial.fxy_financial_tax_report_result
+                (
+                account_set_id,
+                tax_time,
+                all_count,
+                success_count,
+                img_path,
+                id
+                )
+                VALUES
+                (:accountSetId, :taxTime, :allCount, :successCount, :imgPath, :id);
+            ]]>
+        </value>
+    </sql>
+    <sql id="insertTaxAmount" type="insert">
+        <value>
+            <![CDATA[
+                INSERT INTO
+                fxy_financial_image_payment
+                (
+                account_sets_id,
+                id,
+                image_url
+                )
+                VALUES
+                (:accountSetsId, :id, :imageUrl);
+            ]]>
+        </value>
+    </sql>
+</sqltoy>

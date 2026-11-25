@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<sqltoy xmlns="http://www.sagframe.com/schema/sqltoy"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.sagframe.com/schema/sqltoy http://www.sagframe.com/schema/sqltoy/sqltoy.xsd">
+
+    <!--扣缴端同步到系统人员结果 start-->
+    <sql id="saveSyncEmployeeInformation" type="insert">
+        <value>
+            <![CDATA[
+                INSERT INTO`fxy_financial_sync_employee_information`
+                    (`account_sets_id`, `result`, `failed_reason`, `img_url`)
+                VALUES
+                    (:accountSetsId
+                     ,:result
+                    ,:failedReason
+                    ,:imgUrl
+            ]]>
+        </value>
+    </sql>
+    <sql id="updateSyncEmployeeInformation" type="update">
+        <value>
+            <![CDATA[
+                UPDATE `fxy_financial_sync_employee_information`
+                SET
+                `result` = :result ,
+                `failed_reason` = :failedReason,
+                `img_url` = :imgUrl
+                WHERE
+                `account_sets_id` = :accountSetsId
+                AND `id` = :id
+            ]]>
+        </value>
+    </sql>
+    <sql id="selectIndividualTaxList" type="select">
+        <value>
+            <![CDATA[
+                SELECT
+                    fe.account_sets_id AS accountSetsId ,ffas.credit_code AS creditCode,ffas.individual_tax_code AS individualTaxCode, ffas.company_name AS companyName ,fe.id AS id
+                FROM
+                    fxy_financial_individual_tax fe
+                    JOIN (SELECT account_sets_id, MAX(id) AS max_id FROM fxy_financial_individual_tax WHERE period = :period GROUP BY account_sets_id) m ON m.account_sets_id = fe.account_sets_id
+                    AND m.max_id = fe.id
+                    LEFT JOIN fxy_financial_account_sets ffas ON fe.account_sets_id = ffas.id
+                WHERE
+                    EXISTS (SELECT 1 FROM fxy_financial_user_account_sets ffuas WHERE ffuas.user_id = :userId  AND ffuas.account_sets_id = fe.account_sets_id)
+                    AND fe.result = 0
+            ]]>
+        </value>
+    </sql>
+
+
+    <sql id="selectRyInSys" type="select">
+        <value>
+            <![CDATA[
+                     select
+                        ffas.id AS id,
+                        MAX(ffas.company_name)  AS companyName,
+                        MAX(ffas.individual_tax_code)  AS individualTaxCode,
+                        MAX(ffas.credit_code)  AS creditCode,
+                        MAX(ffas.individual_tax_code) AS individualTaxCode
+                    from
+                        fxy_financial_account_sets ffas
+                    left join
+                        fxy_financial_user_account_sets ffuas
+                        on ffas.id = ffuas.account_sets_id
+                    left join fxy_financial_sync_employee_information ffsei
+                        on ffuas.account_sets_id  = ffsei.account_sets_id
+                    where 1=1
+                    and not exists (select 1 from fxy_financial_sync_employee_information a where a.account_sets_id  = ffuas.account_sets_id )
+                    and not exists (select 1 from fxy_financial_employee b where b.account_sets_id = ffuas.account_sets_id )
+                    and	ffuas.user_id = 801504833780875670
+                    group by
+                            ffas.id
+            ]]>
+        </value>
+    </sql>
+</sqltoy>

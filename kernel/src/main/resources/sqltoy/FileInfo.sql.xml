@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<sqltoy xmlns="http://www.sagframe.com/schema/sqltoy"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.sagframe.com/schema/sqltoy http://www.sagframe.com/schema/sqltoy/sqltoy.xsd">
+    <sql id="selectBankStatement" type="select">
+        <value>
+            <![CDATA[
+                        SELECT
+                          *
+                        FROM
+                          `fxy_financial_file_info`
+                        WHERE
+                          account_sets_id = :accountSetsId
+                          AND DATE_FORMAT(account_set_period, '%Y-%m') = :currentAccountDate
+                          AND type = :type
+                          AND is_delete = 0
+
+            ]]>
+        </value>
+    </sql>
+</sqltoy>

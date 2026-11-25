@@ -1,0 +1,72 @@
+# 本地 dev profile —— 本地联调用（基础版前置-2 在 FN3-T1 邮件占位基础上扩展）。
+# 启动方式：SPRING_PROFILES_ACTIVE=app,dev（或 --spring.profiles.active=app,dev），
+#   dev 段叠加在 app 之上，覆盖 server.port / 数据源 / 邮件，指向本地。
+# 与 application-app.yml（生产端口 8012、远程库、QQ SMTP）互斥，**不动生产真值**。
+#
+# 覆盖内容（基础版前置-2）：
+#   - server.port 与生产 application-app.yml 一致 = 8012（管理者 2026-05-30 拍板 financial 后端定 8012；
+#     invoice-print 后端已挪到 8013，不再冲突；dev profile 仍保留 server 段以便未来按需差异化覆盖）
+#   - 数据源 远程 150.139.141.142 → 本地 localhost:3306/financial（避免本地联调连到远程共享库）
+#   - redis 127.0.0.1:6379、mail localhost:1025（本地）
+# 真凭证 / 个性化覆盖请放 application-local.yml（已 .gitignore），用 app,dev,local 激活。
+#
+# 联调 SMTP 的 3 种方式：
+#   1) 集成测试（推荐）：./gradlew :bs-server:test --tests "*InvoiceTaskNotifyIntegration*"
+#      —— 测试代码内启 GreenMail，邮件落到测试内存收件箱断言（FN3-T2）
+#   2) 手测：本机起 Python smtpd 在 1025：
+#        python -m smtpd -n -c DebuggingServer localhost:1025
+#      —— SMTP 包打印到 stdout，验证应用真发出
+#   3) 真 SMTP：在 application-prod.yml 填真凭证（QQ App Password / 阿里云邮件推送 / mailtrap.io 等）
+server:
+  # 本地监听 8012（与生产 application-app.yml 对齐；2026-05-30 管理者拍板 financial 后端 = 8012）
+  port: 8012
+
+spring:
+  datasource:
+    # 本地 financial 库；createDatabaseIfNotExist 让首次启动自动建库。
+    # 默认 root/123（与团队本地约定 + application-test.yml 一致，非生产凭证）；
+    # 本机账号不同时用环境变量覆盖，或写 application-local.yml（不进版本控制）。
+    url: jdbc:mysql://${LOCAL_DB_HOST:localhost}:${LOCAL_DB_PORT:3306}/${LOCAL_DB_NAME:financial}?characterEncoding=UTF-8&useUnicode=true&useSSL=false&serverTimezone=GMT%2B8&allowMultiQueries=true&allowPublicKeyRetrieval=true&createDatabaseIfNotExist=true
+    username: ${LOCAL_DB_USER:root}
+    password: ${LOCAL_DB_PASSWORD:123}
+  data:
+    redis:
+      # 本地 redis（与生产 base 一致：127.0.0.1:6379 / db 2）
+      url: redis://127.0.0.1:6379
+      database: 2
+  mail:
+    host: ${SPRING_MAIL_HOST:localhost}
+    port: ${SPRING_MAIL_PORT:1025}
+    username:
+    password:
+    default-encoding: utf-8
+    properties:
+      mail:
+        smtp:
+          auth: false
+          starttls:
+            enable: false
+          timeout: 5000
+          connection-timeout: 5000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      # 本地联调显示组件明细（db/redis），便于排查；生产默认 never 不受影响
+      show-details: always
+  health:
+    mail:
+      # 本地默认不起 SMTP（localhost:1025 仅手测时才起 Python smtpd）。
+      # 关掉 mail 健康指示器，避免它把整体 /health 拖成 DOWN；本地只关心 db/redis。
+      # 生产无此覆盖，mail 健康检查仍生效。
+      enabled: false
+
+logging:
+  level:
+    cn.gson.financial.kernel.service.EmailService: debug
+    cn.gson.financial.kernel.service.InvoiceNotificationService: debug
+    cn.gson.financial.controller.openapi.OpenApiInvoiceTaskController: debug

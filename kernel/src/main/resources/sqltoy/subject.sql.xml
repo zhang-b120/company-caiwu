@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<sqltoy xmlns="http://www.sagframe.com/schema/sqltoy"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.sagframe.com/schema/sqltoy http://www.sagframe.com/schema/sqltoy/sqltoy.xsd">
+
+    <sql id="subjectList">
+        <filters>
+            <to-string params="currencyId" add-quote="double"/>
+        </filters>
+        <value>
+            <![CDATA[
+            SELECT account_sets_id,
+                   id,
+                   adjustments,
+                   auxiliary_accounting,
+                   balance_direction,
+                   code,
+                   currency_accounting,
+                   full_name,
+                   IF((select count(1) from fxy_financial_subject as ffs2 where ffs2.account_sets_id = :accountSetsId and ffs2.status = 1 and ffs2.parent_id = ffs.id) > 0, 0, 1) as leaf,
+                   level,
+                   mnemonic_code,
+                   name,
+                   parent_id,
+                   query_code,
+                   status,
+                   system_default,
+                   type,
+                   unit,
+                   cash,
+                   non_auxiliary_accounting
+            FROM fxy_financial_subject AS ffs
+            WHERE ffs.account_sets_id = :accountSetsId
+              AND ffs.status = 1
+            #[@if(:isLocal==false) AND json_contains(ffs.currency_accounting, :currencyId)]
+            #[AND ffs.type = :type]
+            order by ffs.query_code, ffs.id
+            ]]>
+        </value>
+    </sql>
+
+    <sql id="parentSubjectList">
+        <value>
+            <![CDATA[
+            SELECT account_sets_id,
+                   id,
+                   adjustments,
+                   auxiliary_accounting,
+                   balance_direction,
+                   code,
+                   currency_accounting,
+                   full_name,
+                   IF((select count(1) from fxy_financial_subject as ffs2 where ffs2.account_sets_id = :accountSetsId and ffs2.status = 1 and ffs2.parent_id = ffs.id) > 0, 0, 1) as leaf,
+                   level,
+                   mnemonic_code,
+                   name,
+                   parent_id,
+                   query_code,
+                   status,
+                   system_default,
+                   type,
+                   unit,
+                   cash,
+                   non_auxiliary_accounting
+            FROM fxy_financial_subject AS ffs
+            WHERE ffs.account_sets_id = :accountSetsId
+              AND ffs.status = 1
+            #[AND ffs.type = :type]
+            order by ffs.query_code, ffs.id
+            ]]>
+        </value>
+    </sql>
+
+</sqltoy>

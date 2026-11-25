@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="utf-8"?>
+<sqltoy xmlns="http://www.sagframe.com/schema/sqltoy"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.sagframe.com/schema/sqltoy http://www.sagframe.com/schema/sqltoy/sqltoy.xsd">
+
+  <!--首页图表数据-->
+  <sql id="selectHomeReport">
+    <value>
+            <![CDATA[
+      select '本年利润' type, ffb.year, ffb.period as month, ffb.end_balance end_balance
+      from fxy_financial_balance ffb
+             left join fxy_financial_subject ffs on ffs.id = ffb.subject_id and ffs.account_sets_id = ffb.account_sets_id
+      where ffs.code = '3103'
+        and ffb.account_sets_id = :accountSetsId
+        and ffb.year = :voucherYear
+        and ffb.auxiliary_detail_id = 0
+      union
+      select '主营业务收入' type, ffb.year, ffb.period as month, ffb.end_balance end_balance
+      from fxy_financial_balance ffb
+             left join fxy_financial_subject ffs on ffs.id = ffb.subject_id and ffs.account_sets_id = ffb.account_sets_id
+      where ffs.code = '5001'
+        and ffb.account_sets_id = :accountSetsId
+        and ffb.year = :voucherYear
+        and ffb.auxiliary_detail_id = 0
+      ]]>
+        </value>
+  </sql>
+
+  <sql id="selectHomeCostReport">
+    <value>
+            <![CDATA[
+      select '销售费用' type, ffb.year, ffb.period as month, ffb.end_balance end_balance
+      from fxy_financial_balance ffb
+             left join fxy_financial_subject ffs on ffs.id = ffb.subject_id and ffs.account_sets_id = ffb.account_sets_id
+      where ffs.code = '5601'
+        and ffb.account_sets_id = :accountSetsId
+        and ffb.year = :voucherYear
+        and ffb.period = :voucherMonth
+        and ffb.auxiliary_detail_id = 0
+      union
+      select '管理费用' type, ffb.year, ffb.period as month, ffb.end_balance end_balance
+      from fxy_financial_balance ffb
+             left join fxy_financial_subject ffs on ffs.id = ffb.subject_id and ffs.account_sets_id = ffb.account_sets_id
+      where ffs.code = '5602'
+        and ffb.account_sets_id = :accountSetsId
+        and ffb.year = :voucherYear
+        and ffb.period = :voucherMonth
+        and ffb.auxiliary_detail_id = 0
+      union
+      select '财务费用' type, ffb.year, ffb.period as month, ffb.end_balance end_balance
+      from fxy_financial_balance ffb
+             left join fxy_financial_subject ffs on ffs.id = ffb.subject_id and ffs.account_sets_id = ffb.account_sets_id
+      where ffs.code = '5603'
+        and ffb.account_sets_id = :accountSetsId
+        and ffb.year = :voucherYear
+        and ffb.period = :voucherMonth
+        and ffb.auxiliary_detail_id = 0
+      ]]>
+        </value>
+  </sql>
+
+  <sql id="selectHomeCashReport">
+    <value>
+            <![CDATA[
+      select '库存现金' type, ffb.year, ffb.period as month, ffb.end_balance end_balance
+      from fxy_financial_balance ffb
+             left join fxy_financial_subject ffs on ffs.id = ffb.subject_id and ffs.account_sets_id = ffb.account_sets_id
+      where ffs.code = '1001'
+        and ffb.account_sets_id = :accountSetsId
+        and ffb.year = :voucherYear
+        and ffb.period = :voucherMonth
+        and ffb.auxiliary_detail_id = 0
+      union
+      select '银行存款' type, ffb.year, ffb.period as month, ffb.end_balance end_balance
+      from fxy_financial_balance ffb
+             left join fxy_financial_subject ffs on ffs.id = ffb.subject_id and ffs.account_sets_id = ffb.account_sets_id
+      where ffs.code = '1002'
+        and ffb.account_sets_id = :accountSetsId
+        and ffb.year = :voucherYear
+        and ffb.period = :voucherMonth
+        and ffb.auxiliary_detail_id = 0
+      union
+      select '其他货币资金' type, ffb.year, ffb.period as month, ffb.end_balance end_balance
+      from fxy_financial_balance ffb
+             left join fxy_financial_subject ffs on ffs.id = ffb.subject_id and ffs.account_sets_id = ffb.account_sets_id
+      where ffs.code = '1012'
+        and ffb.account_sets_id = :accountSetsId
+        and ffb.year = :voucherYear
+        and ffb.period = :voucherMonth
+        and ffb.auxiliary_detail_id = 0
+      ]]>
+        </value>
+  </sql>
+
+  <sql id="selectTopSummary">
+    <value>
+            <![CDATA[
+      select t.summary
+      from (select trim(summary) summary, count(1) num
+            from fxy_financial_voucher_details
+            where account_sets_id = :accountSetsId
+              and length(trim(summary)) > 0
+            group by trim(summary)) t
+      order by t.num desc
+      limit 10
+      ]]>
+        </value>
+  </sql>
+
+  <!--辅助项目是否在凭证中关联-->
+  <sql id="voucherDetailsAuxiliaryCount">
+    <value>
+            <![CDATA[
+      SELECT count(ffvd.id)
+      FROM fxy_financial_voucher_details AS ffvd
+      WHERE ffvd.account_sets_id = :accountSetsId
+        and ffvd.auxiliary_detail_id in (:detailIds)
+      ]]>
+        </value>
+  </sql>
+
+  <sql id="ab-auxiliary-by-acId">
+    <filters>
+      <to-string params="categoryType" add-quote="double"/>
+      <to-string params="categoryId" add-quote="double"/>
+      <to-string params="detailId" add-quote="double"/>
+    </filters>
+    <value>
+            <![CDATA[
+      SELECT ffad.id as id
+      FROM fxy_financial_auxiliary_detail AS ffad
+      WHERE ffad.account_sets_id = :accountSetsId
+      #[AND json_contains(ffad.details -> '$[*].categoryType', :categoryType) = 1]
+      #[AND json_contains(ffad.details -> '$[*].categoryId', :categoryId) = 1]
+      #[AND json_contains(ffad.details -> '$[*].value', :detailId) = 1]
+      ]]>
+    </value>
+  </sql>
+</sqltoy>
+

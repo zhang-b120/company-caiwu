@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="utf-8"?>
+<sqltoy xmlns="http://www.sagframe.com/schema/sqltoy"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.sagframe.com/schema/sqltoy http://www.sagframe.com/schema/sqltoy/sqltoy.xsd">
+    <sql id="depreciationDetail" type="select">
+        <value>
+            <![CDATA[
+            SELECT t.*,
+                   sum(t.depreciation_credit)                     AS current,
+                   (SELECT sum(ffad2.depreciation_credit)
+                    FROM fxy_financial_assets_detail ffad2
+                    WHERE ffad2.assert_id = t.assert_id
+                      AND ffad2.depreciation_id is not null
+                      AND ffad2.check_date BETWEEN date_format(t.check_date, '%Y-01-01')
+                        AND t.check_date
+                      AND ffad2.account_sets_id = :accountSetsId) AS currentYear,
+                   t.original_value - t.net_value                 AS total
+            FROM (SELECT date_format(ffad.check_date, '%Y年%m月') AS MONTH,
+                         ffad.assert_id,
+                         ffad.check_date,
+                         ffd.name                                 as dept_name,
+                         ffa.CODE,
+                         ffa.NAME,
+                         ffat.NAME                                AS typeName,
+                         ffa.specification,
+                         ffa.original_value,
+                         ffad.net_value,
+                         ffad.depreciation_credit
+                  FROM fxy_financial_assets_detail ffad
+                           LEFT JOIN fxy_financial_assets ffa ON ffad.assert_id = ffa.id
+                      AND ffad.account_sets_id = ffa.account_sets_id
+                           LEFT JOIN fxy_financial_department ffd ON ffd.id = ffa.dept_id
+                      AND ffd.account_sets_id = ffa.account_sets_id
+                           LEFT JOIN fxy_financial_assets_type ffat ON ffa.assets_type_id = ffat.id
+                      AND ffat.account_sets_id = ffa.account_sets_id
+                  where ffad.account_sets_id = :accountSetsId
+                    and ffad.depreciation_id is not null
+                    and ffad.check_date between :start and :end
+                     #[and ffa.assets_type_id = :assetsTypeId]
+                     #[and ffa.code = :code]
+                     #[and ffad.dept_id = :deptId]
+                 ) t
+            group by t.check_date,t.code,t.assert_id,t.net_value,t.depreciation_credit
+            order by t.check_date, t.code
+            ]]>
+        </value>
+    </sql>
+
+    <sql id="deptSummary">
+        <value>
+            <![CDATA[
+            select tt.*,
+                   coalesce(tt.originalStart, 0) + coalesce(tt.original_credit, 0) - coalesce(tt.original_debit, 0) as originalLast,
+                   coalesce(tt.depreciationStart, 0) + coalesce(tt.depreciation_debit, 0) - coalesce(tt.depreciation_credit, 0) as depreciationLast,
+                   coalesce(tt.impairmentStart, 0) + coalesce(tt.impairment_debit, 0) - coalesce(tt.impairment_credit, 0)       as impairmentLast
+            from (select sum(t.original_credit)                                                   AS original_debit,
+                         sum(t.original_debit)                                                    AS original_credit,
+                         sum(t.depreciation_credit)        as depreciation_debit,
+                         sum(t.depreciation_debit)         as depreciation_credit,
+                         sum(t.impairment_debit)           as impairment_credit,
+                         sum(t.impairment_credit)          as impairment_debit,
+                         (select sum(ffad2.original_debit - ffad2.original_credit)
+                          from fxy_financial_assets_detail ffad2
+                          where ffad2.dept_id = t.dept_id
+                            and ffad2.check_date < :start
+                            and ffad2.account_sets_id = :accountSetsId) as originalStart,
+                         (select sum(ffad3.depreciation_credit - ffad3.depreciation_debit)
+                          from fxy_financial_assets_detail ffad3
+                          where ffad3.dept_id = t.dept_id
+                            and ffad3.check_date < :start
+                            and ffad3.account_sets_id = :accountSetsId) as depreciationStart,
+                         (select sum(ffad4.impairment_debit - ffad4.impairment_credit)
+                          from fxy_financial_assets_detail ffad4
+                          where ffad4.dept_id = t.dept_id
+                            and ffad4.check_date < :start
+                            and ffad4.account_sets_id = :accountSetsId) as impairmentStart,
+                         t.deptName                                                               as name,
+                         t.dept_id                         as dept_id
+                  from (select ffad.*, ffat.name typeName, ffd.`name` deptName, ffa.assets_type_id
+                        from fxy_financial_assets_detail ffad
+                                 LEFT JOIN fxy_financial_department ffd ON ffad.dept_id = ffd.id AND ffad.account_sets_id = ffd.account_sets_id
+                                 left join fxy_financial_assets ffa on ffad.assert_id = ffa.id and ffad.account_sets_id = ffa.account_sets_id
+                                 left join fxy_financial_assets_type ffat on ffa.assets_type_id = ffat.id and ffat.account_sets_id = ffa.account_sets_id
+                        where ffad.account_sets_id = :accountSetsId
+                          and ffad.check_date between :start and :end) t
+                  group by t.dept_id
+                  order by t.dept_id) tt
+            ]]>
+        </value>
+        <summary sum-columns="originalLast,depreciationLast,originalStart,depreciationStart,impairmentStart,impairmentLast,original_credit,original_debit,depreciation_credit,depreciation_debit,impairment_debit,impairment_credit">
+            <global label-column="name" sum-label="合计"/>
+        </summary>
+    </sql>
+    <sql id="typeSummary">
+        <value>
+            <![CDATA[
+            select tt.*,
+                   coalesce(tt.originalStart, 0) + coalesce(tt.original_credit, 0) - coalesce(tt.original_debit, 0) as originalLast,
+                   coalesce(tt.depreciationStart, 0) + coalesce(tt.depreciation_debit, 0) - coalesce(tt.depreciation_credit, 0) as depreciationLast,
+                   coalesce(tt.impairmentStart, 0) + coalesce(tt.impairment_debit, 0) - coalesce(tt.impairment_credit, 0)       as impairmentLast
+            from (select sum(t.original_credit)            as original_debit,
+                         sum(t.original_debit)             as original_credit,
+                         sum(t.depreciation_credit)        as depreciation_debit,
+                         sum(t.depreciation_debit)         as depreciation_credit,
+                         sum(t.impairment_debit)           as impairment_credit,
+                         sum(t.impairment_credit)          as impairment_debit,
+                         (select sum(ffad2.original_debit - ffad2.original_credit)
+                          from fxy_financial_assets_detail ffad2
+                                   left join fxy_financial_assets f on ffad2.assert_id = f.id
+                          where f.assets_type_id = t.assets_type_id
+                            and ffad2.check_date < :start
+                            and ffad2.account_sets_id = :accountSetsId) as originalStart,
+                         (select sum(ffad3.depreciation_credit - ffad3.depreciation_debit)
+                          from fxy_financial_assets_detail ffad3
+                                   left join fxy_financial_assets f on ffad3.assert_id = f.id
+                          where f.assets_type_id = t.assets_type_id
+                            and ffad3.check_date < :start
+                            and ffad3.account_sets_id = :accountSetsId) as depreciationStart,
+                         (select sum(ffad4.impairment_debit - ffad4.impairment_credit)
+                          from fxy_financial_assets_detail ffad4
+                                   left join fxy_financial_assets f on ffad4.assert_id = f.id
+                          where f.assets_type_id = t.assets_type_id
+                            and ffad4.check_date < :start
+                            and ffad4.account_sets_id = :accountSetsId) as impairmentStart,
+                         t.typeName                        as name,
+                         t.assets_type_id                  as assets_type_id
+                  from (select ffad.*, ffat.name typeName, ffa.assets_type_id
+                        from fxy_financial_assets_detail ffad
+                                 left join fxy_financial_assets ffa on ffad.assert_id = ffa.id and ffad.account_sets_id = ffa.account_sets_id
+                                 left join fxy_financial_assets_type ffat on ffa.assets_type_id = ffat.id and ffat.account_sets_id = ffa.account_sets_id
+                        where ffad.account_sets_id = :accountSetsId
+                          and ffad.check_date between :start and :end) t
+                  group by t.assets_type_id
+                  order by t.assets_type_id) tt
+            ]]>
+        </value>
+
+        <summary sum-columns="originalLast,depreciationLast,originalStart,depreciationStart,impairmentStart,impairmentLast,original_credit,original_debit,depreciation_credit,depreciation_debit,impairment_debit,impairment_credit">
+            <global label-column="name" sum-label="合计"/>
+        </summary>
+    </sql>
+</sqltoy>

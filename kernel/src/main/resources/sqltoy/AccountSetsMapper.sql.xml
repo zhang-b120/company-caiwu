@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<sqltoy xmlns="http://www.sagframe.com/schema/sqltoy"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.sagframe.com/schema/sqltoy http://www.sagframe.com/schema/sqltoy/sqltoy.xsd">
+    <sql id="getProvince" type="select">
+        <value>
+            <![CDATA[
+                  SELECT
+                  concat(ifnull(t2.province, ''), '*', ifnull(t2.electricity_tax_phone, '')) AS taxSystemKey,
+                  t2.province AS province,
+                  t2.electricity_tax_phone AS electricityTaxPhone,
+                  count(t2.id) AS accountSetCount
+                FROM
+                  fxy_financial_account_sets t2
+
+                where 1=1
+                    #[AND t2.electricity_tax_phone = :electricityTaxPhone]
+                	#[and t2.province = :provinceName]
+
+                GROUP BY
+                  t2.province ,
+                  t2.electricity_tax_phone,
+                  concat(ifnull( t2.province, '') , '*', ifnull( t2.electricity_tax_phone, '') )
+            ]]>
+        </value>
+    </sql>
+    <sql id="getAccountSet" type="select">
+        <value>
+            <![CDATA[
+                  SELECT
+                        t.id AS id,
+                        t.company_name AS companyName,
+                        t.create_date AS createDate,
+                        t.credit_code AS creditCode,
+                        t.vat_type AS vatTypes,
+                        t.electricity_tax_code AS electricityTaxCode,
+                        t.province AS province,
+                        t.electricity_tax_phone AS electricityTaxPhone,
+                        t.zero_declarations AS zeroDeclarations
+                  FROM
+                        fxy_financial_account_sets t
+                  LEFT JOIN
+                        fxy_financial_user_account_sets t1
+                            ON t1.account_sets_id = t.id
+                  LEFT JOIN
+                        fxy_financial_user t2
+                            ON t1.user_id = t2.id
+                  WHERE
+                        t.electricity_tax_phone = :electricityTaxPhone
+                        #[AND t.province = :province]
+                  GROUP BY
+                        t.id
+            ]]>
+        </value>
+    </sql>
+</sqltoy>

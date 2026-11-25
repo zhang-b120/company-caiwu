@@ -1,0 +1,81 @@
+dependencies {
+    implementation project(':kernel')
+    implementation project(':sync')
+    implementation 'xerces:xercesImpl:2.12.2'
+    runtimeOnly('com.mysql:mysql-connector-j')
+    implementation('com.itextpdf:itextpdf:5.5.13.4')
+    implementation("org.apache.poi:poi:${poiVer}")
+    implementation("org.apache.poi:poi-ooxml:${poiVer}")
+    implementation("com.deepoove:poi-ooxml-schemas-extra:${poiSchemasVer}")
+    implementation('org.springframework.boot:spring-boot-starter-web')
+    implementation "org.springframework.boot:spring-boot-starter-mail"
+    // 基础版前置-2：actuator 提供 /actuator/health（本地/联调健康检查）。
+    // 默认 web 暴露仅 health（read-only，show-details=never），dev profile 额外暴露 info；生产影响极小。
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'com.microsoft.playwright:playwright:1.32.0'
+    implementation('com.alibaba:dashscope-sdk-java:2.21.10') {
+        exclude group: 'org.slf4j', module: 'slf4j-simple'
+    }
+    // FN-AI-T3（187）AI 智能填表多模态：PDF 抽文本（PDFTextStripper）+ 扫描件渲染成图走 vision（PDFRenderer）。
+    implementation('org.apache.pdfbox:pdfbox:2.0.31')
+    testImplementation('org.springframework.boot:spring-boot-starter-test')
+    // FN-FIX-V5-E2E-TEST-REWORK: H2 in-memory DB for @SpringBootTest 真集成测试
+    testRuntimeOnly('com.h2database:h2:2.2.224')
+    // 合并 origin/detached：以下上游测试基建依赖在更新合并 build.gradle 时一度丢失，
+    // 导致 FlywayRepairRunner / LocalFlywayRunner / 邮件 / DLQ 等测试编译不过，这里随 H2 一并保留（取并集）。
+    testImplementation('org.flywaydb:flyway-core:10.14.0')
+    testImplementation('org.flywaydb:flyway-mysql:10.14.0')
+    // FN2-T2 嵌入式 SMTP：验证 EmailService → JavaMailSender → SMTP 真链路
+    testImplementation('com.icegreen:greenmail:2.0.1')
+    testImplementation('com.icegreen:greenmail-junit5:2.0.1')
+    // FN9-T2 嵌入式 Redis（纯 JVM 进程，禁 docker / Testcontainers）：真跑 DLQ ZSET 命令。
+    testImplementation('com.github.codemonstur:embedded-redis:1.4.3')
+}
+
+test {
+    useJUnitPlatform()
+    jvmArgs '-Djdk.attach.allowAttachSelf=true', '-XX:+UseSerialGC'
+    maxHeapSize = '384m'
+}
+
+// FN2-T1 本地 MySQL Flyway 验证。用法：./gradlew :bs-server:runFlywayLocal
+// 默认连 127.0.0.1:3306 root/123 financial_test；可通过 -P 覆盖。
+tasks.register('runFlywayLocal', JavaExec) {
+    group = 'verification'
+    description = 'FN2-T1: run Flyway against local MySQL and verify schema'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'cn.gson.financial.flyway.LocalFlywayRunner'
+    standardOutput = System.out
+    errorOutput = System.err
+    if (project.hasProperty('mysqlHost')) systemProperty 'local.mysql.host', project.getProperty('mysqlHost')
+    if (project.hasProperty('mysqlPort')) systemProperty 'local.mysql.port', project.getProperty('mysqlPort')
+    if (project.hasProperty('mysqlUser')) systemProperty 'local.mysql.user', project.getProperty('mysqlUser')
+    if (project.hasProperty('mysqlPassword')) systemProperty 'local.mysql.password', project.getProperty('mysqlPassword')
+    if (project.hasProperty('mysqlDb')) systemProperty 'local.mysql.db', project.getProperty('mysqlDb')
+}
+
+// 修复 flyway_schema_history 校验和漂移（已 apply 的迁移文件被改动后）。用法：./gradlew :bs-server:repairFlyway
+// 默认连本地 financial 库；可通过 -PmysqlDb=... 等覆盖。
+tasks.register('repairFlyway', JavaExec) {
+    group = 'verification'
+    description = 'Run Flyway repair against local MySQL to fix checksum mismatch'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'cn.gson.financial.flyway.FlywayRepairRunner'
+    standardOutput = System.out
+    errorOutput = System.err
+    if (project.hasProperty('mysqlHost')) systemProperty 'local.mysql.host', project.getProperty('mysqlHost')
+    if (project.hasProperty('mysqlPort')) systemProperty 'local.mysql.port', project.getProperty('mysqlPort')
+    if (project.hasProperty('mysqlUser')) systemProperty 'local.mysql.user', project.getProperty('mysqlUser')
+    if (project.hasProperty('mysqlPassword')) systemProperty 'local.mysql.password', project.getProperty('mysqlPassword')
+    if (project.hasProperty('mysqlDb')) systemProperty 'local.mysql.db', project.getProperty('mysqlDb')
+}
+
+bootJar {
+    archivesBaseName = 'financial-v4'
+
+    launchScript()
+}
+
+tasks.withType(Jar).configureEach {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}

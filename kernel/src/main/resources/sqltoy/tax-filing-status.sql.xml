@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="utf-8"?>
+<sqltoy xmlns="http://www.sagframe.com/schema/sqltoy"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.sagframe.com/schema/sqltoy http://www.sagframe.com/schema/sqltoy/sqltoy.xsd">
+
+    <!--
+      报税情况联查（服务端分页）
+      参数（除 currentUserId/taxPeriod/taxYear 外均可空，空则该条件自动跳过）：
+        currentUserId, taxPeriod, taxYear           - 必填
+        accountSetCreateDateStart/End               - 账套创建日期范围
+        province                                    - 省份（同时匹配拼音与中文名；城市名带括号时只匹配括号前本名，如搜"厦门"命中"厦门（福建）"，搜"福建"不命中）
+        companyName, creditCode, individualTaxCode, companyOrgType - 账套表模糊
+        vatType                                     - 账套表精确（SMALL_SCALE/COMMONLY）
+        creatorKeyword                              - 所属人员（real_name / nickname / mobile 三选一）
+        taxHandlingOldAccount, nature               - tfi
+        salaryWagesEnabled, businessIncomeEnabled   - tfi 布尔
+        salaryWages / salaryWagesTax                - tfs
+        businessIncome / businessIncomeTax          - tfs
+        stateTax / stateTaxAmount                   - tfs
+        enterpriseAnnualReport / industryCommercialAnnualReport / annualRemark - tfa
+        remarkKeyword                               - tfi.remark / remark1-4 任一命中
+    -->
+    <sql id="tax_filing_status_list" type="select">
+        <value>
+            <![CDATA[
+            select
+                tfs.id                          as id,
+                tfs.account_set_id              as accountSetId,
+                tfs.tax_period                  as taxPeriod,
+                tfs.salary_wages                as salaryWages,
+                tfs.salary_wages_tax            as salaryWagesTax,
+                tfs.business_income             as businessIncome,
+                tfs.business_income_tax         as businessIncomeTax,
+                tfs.state_tax                   as stateTax,
+                tfs.state_tax_amount            as stateTaxAmount,
+                tfs.created_at                  as createdAt,
+                tfs.updated_at                  as updatedAt,
+                tfi.id                          as infoId,
+                tfi.salary_wages_enabled        as salaryWagesEnabled,
+                tfi.business_income_enabled     as businessIncomeEnabled,
+                tfi.tax_handling_old_account    as taxHandlingOldAccount,
+                tfi.nature                      as nature,
+                tfi.remark                      as remark,
+                tfi.remark1                     as remark1,
+                tfi.remark2                     as remark2,
+                tfi.remark3                     as remark3,
+                tfi.remark4                     as remark4,
+                ast.id                          as accountSetsId,
+                ast.company_name                as companyName,
+                ast.credit_code                 as creditCode,
+                ast.individual_tax_code         as individualTaxCode,
+                ast.company_org_type            as companyOrgType,
+                ast.province                    as province,
+                (select tba.city from fxy_financial_tax_bureau_address tba
+                  where tba.pin_yin = ast.province limit 1) as provinceName,
+                ast.vat_type                    as vatType,
+                ast.account_standard            as accountStandard,
+                ast.creator_id                  as creatorId,
+                ast.current_account_date        as currentAccountDate,
+                ast.zero_declarations           as zeroDeclarations,
+                ast.deactivated                 as deactivated,
+                DATE_FORMAT(ast.create_date, '%Y-%m-%d') as accountSetCreateDate,
+                u.real_name                     as creatorRealName,
+                u.nickname                      as creatorNickname,
+                u.mobile                        as creatorMobile,
+                tp.id                           as taskPeriodId,
+                tp.period                       as taskPeriod,
+                tp.step_verify                  as stepVerify,
+                tp.step_init                    as stepInit,
+                tp.step_data                    as stepData,
+                tp.step_bookkeep                as stepBookkeep,
+                tp.step_tax_national            as stepTaxNational,
+                tp.step_tax_iit                 as stepTaxIit,
+                tp.step_payment                 as stepPayment,
+                tp.step_annual_report           as stepAnnualReport,
+                tp.step_tax_annual              as stepTaxAnnual,
+                tp.declare_completed            as declareCompleted,
+                tfa.id                          as annualId,
+                tfa.tax_year                    as taxYear,
+                tfa.enterprise_annual_report    as enterpriseAnnualReport,
+                tfa.industry_commercial_annual_report as industryCommercialAnnualReport,
+                tfa.annual_remark               as annualRemark
+            from fxy_financial_account_sets ast
+            inner join fxy_financial_user_account_sets uas
+                    on uas.account_sets_id = ast.id
+            inner join fxy_financial_user u
+                    on u.id = uas.user_id
+            left join fxy_financial_tax_filing_info tfi
+                    on tfi.account_set_id = ast.id
+            left join fxy_financial_tax_filing_status tfs
+                    on tfs.account_set_id = ast.id
+                   and tfs.tax_period = :taxPeriod
+            left join fxy_financial_task_period tp
+                    on tp.account_set_id = ast.id
+                   and tp.period = :taxPeriod
+            left join fxy_financial_tax_filing_annual tfa
+                    on tfa.account_set_id = ast.id
+                   and tfa.tax_year = :taxYear
+            where uas.user_id = :currentUserId
+              and ast.deactivated = b'0'
+              #[and ast.create_date >= :accountSetCreateDateStart]
+              #[and ast.create_date <= :accountSetCreateDateEnd]
+              -- 省份匹配：城市名带括号时（如 厦门（福建）），只按括号前的本名匹配，括号内的所属省份不参与搜索
+              #[and (ast.province like concat('%', :province, '%')
+                  or exists (select 1 from fxy_financial_tax_bureau_address tba2
+                              where tba2.pin_yin = ast.province
+                                and substring_index(substring_index(tba2.city, '（', 1), '(', 1)
+                                    like concat('%', :province, '%')))]
+              #[and ast.company_name      like concat('%', :companyName,        '%')]
+              #[and ast.credit_code       like concat('%', :creditCode,         '%')]
+              #[and ast.individual_tax_code like concat('%', :individualTaxCode,'%')]
+              #[and ast.company_org_type  like concat('%', :companyOrgType,    '%')]
+              #[and ast.vat_type = :vatType]
+              #[and (u.real_name like concat('%', :creatorKeyword, '%')
+                  or u.nickname  like concat('%', :creatorKeyword, '%')
+                  or u.mobile    like concat('%', :creatorKeyword, '%'))]
+              #[and tfi.tax_handling_old_account like concat('%', :taxHandlingOldAccount, '%')]
+              #[and tfi.nature              like concat('%', :nature,           '%')]
+              #[and tfi.salary_wages_enabled    = :salaryWagesEnabled]
+              #[and tfi.business_income_enabled = :businessIncomeEnabled]
+              <!-- 14 个自由文本字段：多值 + 模糊 + 空值，使用 REGEXP（"^$" 子表达式匹配空字符串） -->
+              #[and ifnull(tfs.salary_wages,                          '') regexp :salaryWagesRegex]
+              #[and ifnull(tfs.salary_wages_tax,                      '') regexp :salaryWagesTaxRegex]
+              #[and ifnull(tfs.business_income,                       '') regexp :businessIncomeRegex]
+              #[and ifnull(tfs.business_income_tax,                   '') regexp :businessIncomeTaxRegex]
+              #[and ifnull(tfs.state_tax,                             '') regexp :stateTaxRegex]
+              #[and ifnull(tfs.state_tax_amount,                      '') regexp :stateTaxAmountRegex]
+              #[and ifnull(tfa.enterprise_annual_report,              '') regexp :enterpriseAnnualReportRegex]
+              #[and ifnull(tfa.industry_commercial_annual_report,     '') regexp :industryCommercialAnnualReportRegex]
+              #[and ifnull(tfa.annual_remark,                         '') regexp :annualRemarkRegex]
+              #[and ifnull(tfi.remark,                                '') regexp :remarkRegex]
+              #[and ifnull(tfi.remark1,                               '') regexp :remark1Regex]
+              #[and ifnull(tfi.remark2,                               '') regexp :remark2Regex]
+              #[and ifnull(tfi.remark3,                               '') regexp :remark3Regex]
+              #[and ifnull(tfi.remark4,                               '') regexp :remark4Regex]
+            order by ast.display_order asc, ast.id desc
+            ]]>
+        </value>
+    </sql>
+
+    <!-- 取某账套某账期下的"国税申报"明细 -->
+    <sql id="tax_filing_status_tax_detail" type="select">
+        <value>
+            <![CDATA[
+            select
+                tti.id              as id,
+                tti.task_period_id  as taskPeriodId,
+                tti.tax_name        as taxName,
+                tti.declare_period  as declarePeriod,
+                tti.declare_deadline as declareDeadline,
+                tti.declare_status  as declareStatus,
+                tti.declared_amount as declaredAmount,
+                tti.declare_result  as declareResult,
+                tti.screenshot_urls as screenshotUrls,
+                tti.error_msg       as errorMsg,
+                tti.executed_at     as executedAt,
+                tti.sort_order      as sortOrder
+            from fxy_financial_task_tax_item tti
+            inner join fxy_financial_task_period tp on tp.id = tti.task_period_id
+            where tp.account_set_id = :accountSetId
+              and tp.period = :taxPeriod
+            order by tti.sort_order asc, tti.id asc
+            ]]>
+        </value>
+    </sql>
+
+    <!-- 取某账套某账期下的"个税申报"子任务（综合所得/经营所得 A/B/C 表） -->
+    <sql id="tax_filing_status_iit_detail" type="select">
+        <value>
+            <![CDATA[
+            select
+                tis.id              as id,
+                tis.task_period_id  as taskPeriodId,
+                tis.sub_type        as subType,
+                tis.status          as status,
+                tis.declare_result  as declareResult,
+                tis.screenshot_url  as screenshotUrl,
+                tis.error_msg       as errorMsg,
+                tis.executed_at     as executedAt
+            from fxy_financial_task_iit_sub tis
+            inner join fxy_financial_task_period tp on tp.id = tis.task_period_id
+            where tp.account_set_id = :accountSetId
+              and tp.period = :taxPeriod
+            order by tis.id asc
+            ]]>
+        </value>
+    </sql>
+
+</sqltoy>

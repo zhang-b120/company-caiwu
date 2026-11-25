@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<sqltoy xmlns="http://www.sagframe.com/schema/sqltoy"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.sagframe.com/schema/sqltoy http://www.sagframe.com/schema/sqltoy/sqltoy.xsd">
+
+    <!--
+      个税截图看板列表（服务端分页）。每行 = 一个账套在指定账期的汇总。
+      参数：
+        currentUserId    必填 - 数据权限过滤（仅本人关联账套）
+        taxPeriod        必填 - 账期 YYYY-MM
+        keyword          可空 - 公司名 / 税号模糊
+        province         可空 - 省份（同 tax_filing_status 的省份匹配逻辑）
+        sent             可空 - 0/1 精确；为 null 时不过滤
+        hasShot          可空 - 1=仅有截图 / 0=仅无截图；为 null 时不过滤
+      返回 ocTasksJson: [{"ocTaskId","iitType","finishedAt","urls"}...]，urls 取自 oc_task.result_json 的 screenshot_urls；
+                       无截图则 [null]。oc_task 一个账期会有多条(salary/business+重试)，已在 SQL 内用 ROW_NUMBER
+                       按 (账套, iit_type) 取 finished_at 最新且有截图的一条；Java 侧只负责展开为每张一项 {ocTaskId, idx, iitType}
+      注意：不按 status 过滤——申报失败/部分失败时截图照样抓到并写进 result_json，与任务工作台(读 task_iit_item 不分状态)口径一致。
+    -->
+    <sql id="iit_screenshot_list" type="select">
+        <value>
+            <![CDATA[
+            SELECT
+                ast.id                              AS accountSetId,
+                ast.company_name                    AS companyName,
+                ast.credit_code                     AS creditCode,
+                ast.individual_tax_code             AS individualTaxCode,
+                ast.province                        AS province,
+                (SELECT tba.city FROM fxy_financial_tax_bureau_address tba
+                  WHERE tba.pin_yin = ast.province LIMIT 1) AS provinceName,
+                DATE_FORMAT(ast.create_date, '%Y-%m-%d') AS accountSetCreateDate,
+                IFNULL(tfs.iit_screenshot_sent, 0)  AS iitScreenshotSent,
+                tfs.iit_screenshot_sent_at          AS iitScreenshotSentAt,
+                tfs.iit_screenshot_sent_by          AS iitScreenshotSentBy,
+                tfs.id                              AS taxFilingStatusId,
+                JSON_ARRAYAGG(
+                    CASE WHEN oct.id IS NOT NULL THEN
+                        JSON_OBJECT('ocTaskId',  oct.id,
+                                    'iitType',    oct.iit_type,
+                                    'finishedAt', oct.finished_at,
+                                    'urls',       oct.urls)
+                    END
+                )                                   AS ocTasksJson
+            FROM fxy_financial_account_sets ast
+            INNER JOIN fxy_financial_user_account_sets uas ON uas.account_sets_id = ast.id
+            LEFT JOIN fxy_financial_tax_filing_status tfs
+                   ON tfs.account_set_id = ast.id
+                  AND tfs.tax_period = :taxPeriod
+            LEFT JOIN (
+                SELECT z.account_set_id, z.id, z.iit_type, z.finished_at, z.urls
+                FROM (
+                    SELECT t.account_set_id,
+                           t.id,
+                           t.finished_at,
+                           JSON_UNQUOTE(JSON_EXTRACT(t.result_json, '$.iit_type')) AS iit_type,
+                           JSON_EXTRACT(t.result_json, '$.screenshot_urls')        AS urls,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY t.account_set_id,
+                                            JSON_UNQUOTE(JSON_EXTRACT(t.result_json, '$.iit_type'))
+                               ORDER BY t.finished_at DESC, t.id DESC
+                           ) AS rn
+                    FROM fxy_financial_oc_task t
+                    WHERE t.period = :taxPeriod
+                      AND t.task_type = 'iit_declare'
+                      AND t.result_json IS NOT NULL
+                      AND JSON_VALID(t.result_json)
+                      AND JSON_LENGTH(JSON_EXTRACT(t.result_json, '$.screenshot_urls')) > 0
+                ) z
+                WHERE z.rn = 1
+            ) oct ON oct.account_set_id = ast.id
+            WHERE uas.user_id = :currentUserId
+              AND ast.deactivated = b'0'
+              #[AND (ast.company_name LIKE CONCAT('%', :keyword, '%')
+                  OR ast.credit_code  LIKE CONCAT('%', :keyword, '%'))]
+              #[AND (ast.province LIKE CONCAT('%', :province, '%')
+                  OR EXISTS (SELECT 1 FROM fxy_financial_tax_bureau_address tba2
+                              WHERE tba2.pin_yin = ast.province
+                                AND SUBSTRING_INDEX(SUBSTRING_INDEX(tba2.city, '（', 1), '(', 1)
+                                    LIKE CONCAT('%', :province, '%')))]
+              #[AND IFNULL(tfs.iit_screenshot_sent, 0) = :sent]
+            GROUP BY ast.id
+            #[HAVING ((:hasShot = 1 AND COUNT(oct.id) > 0) OR (:hasShot = 0 AND COUNT(oct.id) = 0))]
+            ORDER BY ast.create_date DESC, ast.id DESC
+            ]]>
+        </value>
+    </sql>
+
+</sqltoy>

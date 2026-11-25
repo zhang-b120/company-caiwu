@@ -1,0 +1,148 @@
+spring:
+  application:
+    name: financial-v3-web-server
+  cache:
+    redis:
+      key-prefix: ''
+  mail:
+    # FN-T3 / FN-T6：开票完成后邮件通知 SMTP；username/password 留空时 dev 模式不会真发，
+    # EmailService 会抛 EmailSendException（"发件人地址未配置"）由调用方处理。
+    # 真实凭证在 application-prod.yml 里填。
+    host: smtp.exmail.qq.com
+    port: 465
+    # 发件人的邮箱
+    username:
+    # 授权码或密码
+    password:
+    # 编码
+    default-encoding: utf-8
+    # 其它参数
+    properties:
+      mail:
+        smtp:
+          ssl:
+            enable: true
+            required: true
+          timeout: 10000
+          connection-timeout: 10000
+          write-timeout: 10000
+
+sa-token:
+  token-name: fv3token
+
+server:
+  port: 8012
+
+cosid:
+  namespace: financial-v3-web
+
+# FN-U（140）collect 单表统一开票任务 —— BT 领取/回写护栏
+financial:
+  scan-direct:
+    # FN-1S 开票只跑一次：失败即置终态 ISSUE_FAILED（见 /result），下面两项已退化为兜底、不再驱动重试。
+    # max-fail=1 仅双保险（失败已是终态，理论上用不到）。
+    max-fail: 1
+    # 锁超时设极大（~1年）：claim 后不再"超时自动重领"，BT 崩在开具后的单只停在锁定/待人工，绝不自动重开。
+    lock-timeout-min: 525600
+    # claim / result / tax-credentials 内部 token；BT 调用须带 X-Internal-Token=此值，否则 403。
+    # 配置为空时一律 403（内部端点不裸奔）；prod 用真随机值覆盖。
+    internal-token: financial-bt-internal-2026
+  # FN-SEC-T1（167）公网接口安全收紧：限流 + lookup 防爆破 + 审计。阈值全部配置化，上线后据审计日志调。
+  security:
+    rate-limit:
+      # 总开关；应急止血置 false 整体放行（拦截器 + 账套维度）。
+      enabled: true
+      # 计数窗口（秒）。"每分钟"语义 = 60。
+      window-seconds: 60
+      # 可信转发层来源 IP：仅这些来源采信其 X-Forwarded-For 作键，其余照来源 IP、不信任 XFF（168 后 8013=.112）。
+      # 多个用逗号分隔。
+      trusted-proxies: 150.139.141.112
+      # POST /openapi/v1/invoice-collect：按 IP / 按账套。
+      collect-ip-per-min: 10
+      collect-account-per-min: 30
+      # POST /openapi/v1/account-sets/lookup-by-credentials：按 IP + 连续失败锁 IP（防撞库）。
+      lookup-ip-per-min: 5
+      lookup-fail-lock-threshold: 10
+      lookup-lock-minutes: 30
+      # GET /openapi/v1/invoice-collect/{orderNo} 轮询（5s/次=12/min，余量足）。
+      get-order-no-ip-per-min: 60
+      # GET /openapi/v1/tax-classification（搜索 + 树）。
+      tax-classification-ip-per-min: 60
+    audit:
+      # SECURITY_AUDIT 滚动文件路径（logback-spring.xml 引用）。
+      log-path: logs/security-audit.log
+
+customize-config:
+  base-path: D:\\financialExcel
+  screen-img-path: E:\\qykj\\file\\imgs
+  pay-img-path: E:\\qykj\\file\\payImgs
+  screen-bank-path: E:\\qykj\\file\\financialBank #E:\\qykj\\file\\financialBank
+static-url:
+  base-url: https://www.qingyicloud.com/
+  img: common/file/imgs/
+  excel: common/file/excel/
+  financial-bank: common/file/financialBank/
+
+# OpenClaw 集成配置
+oc:
+  callback:
+    token:                                       # OC 与后端约定的共享 Token（必填）
+  screenshot-root: E:\qykj\file\oc-screenshots  # OC 截图存储目录（verify / vat / iit 等）
+  screenshot-base-url: http://150.139.141.142:8888/api  # 截图 URL 公网基础地址
+  output-root: D:\tax_output                    # OC 本地输出目录（/oc-local-file 代理用）
+
+# FN-DLV-T1（182）开票成功后发票文件中心存储——套 OC 截图同一套范式（同在 E:\qykj\file\ 下、同一台 8888/api 文件服务）。
+# 🟥 root 必须 Windows 路径，不准用 /data 等 Linux 路径、不准放 C 盘/jar 临时目录。
+invoice-files:
+  root: E:\qykj\file\invoice-files              # 发票文件存储目录：<root>\<orderNo>\<kind>.<ext>
+  base-url: http://150.139.141.142:8888/api     # 发票文件 URL 公网基础地址（同 oc.screenshot-base-url 那台）
+
+# 期初导入工作流接口（直接上传 balanceFile、accountsFile）
+agent:
+  workflow:
+    import-url: http://localhost:8081
+
+# 大模型配置
+qwen:
+  api-key: sk-417bca9e130f4f53998bc45e7fb42611
+  model: qwen-plus
+  vision-model: qwen-vl-plus
+
+# FN-AI-T1（185）AI 智能填表 —— Qwen 推断引擎（DashScope OpenAI 兼容端点）。
+# api-key 复用上方 qwen.api-key（107 行，与旧引擎同一把）、不走环境变量；base-url/model 用默认值（dashscope / qwen-plus）。
+# api-key 为空 → InvoiceSuggestService 降级（degraded:true 不阻断开票）。
+ai:
+  qwen:
+    base-url: ${MIDSCENE_MODEL_BASE_URL:${QWEN_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}}
+    api-key: ${qwen.api-key:}
+    model: ${MIDSCENE_MODEL_NAME:${QWEN_MODEL:qwen-plus}}
+    timeout-ms: 90000   # 临时调大排查 Qwen 卡 20s（原 20000）；确诊后按需回调
+    temperature: 0.2
+    enabled: true
+    # FN-AI-T3（187）多模态：图片/扫描件走 vision 模型（复用 qwen.vision-model 109 行）；vision 更慢，超时放宽。
+    vision-model: ${MIDSCENE_VL_MODEL_NAME:${qwen.vision-model:qwen-vl-plus}}
+    vision-timeout-ms: 40000
+
+# FN-05 事件总线推送 — 下游服务地址（PREP-016 内部域名占位）
+# 三个 URL 由 14 天主计划其他团队提供 wx-push / 企微 push / finmaster；
+# 真空时 listener 走 NO-OP 不发 HTTP；非空时启用重试 + DLQ。
+app:
+  # FN-T6 邮件发件人显示名（可选；为空则邮件 From 头只显示邮箱）
+  mail:
+    from-name: 财务系统通知
+  notify:
+    wx-push-url: http://wx-push.internal:8080/api/financial-event
+    wecom-push-url: http://wc-cs.internal:8080/api/financial-event
+    finmaster-task-url: http://finmaster.internal:8080/api/financial-event
+    # HTTP 5xx / IOException 最大重试次数（不含首发）
+    max-retry: 3
+    dlq:
+      # DLQ worker 扫描间隔（ms）。wx/wecom/finmaster 维持此周期不变。
+      scan-interval-ms: 300000
+      scan-initial-delay-ms: 60000
+      # FN9-T1：用户级通道短 dead-letter TTL（ms），超过即标 dead 丢弃，与通用 24h 区分。
+      # 仅 applicant-reject / applicant-red-letter 生效；置 0 关闭（回落通用 24h warn-only）。
+      # applicant(CONFIRM) 不设短 TTL，沿用通用阈值；wx/wecom/finmaster 不受影响。
+      ttl-ms:
+        applicant-reject: 14400000        # 4h
+        applicant-red-letter: 14400000    # 4h

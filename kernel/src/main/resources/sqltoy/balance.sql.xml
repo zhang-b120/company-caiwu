@@ -1,0 +1,391 @@
+<?xml version="1.0" encoding="utf-8"?>
+<sqltoy xmlns="http://www.sagframe.com/schema/sqltoy"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.sagframe.com/schema/sqltoy http://www.sagframe.com/schema/sqltoy/sqltoy.xsd">
+
+    <!--本期-->
+    <sql id="subject_balance_current">
+        <value>
+            <![CDATA[
+            -- 本期
+            select ffvd.subject_id,
+                   ffvd.account_sets_id,
+                   coalesce(ffvd.currency_id, :localCurrency) as currency_id,
+                   ffs.balance_direction,
+                   coalesce(ffvd.auxiliary_detail_id, 0)      as auxiliary_detail_id,
+                   sum(ffvd.debit_amount)                     as debit,
+                   sum(ffvd.credit_amount)                    as credit,
+                   sum(ffvd.debit_amount_for)                 as debit_for,
+                   sum(ffvd.credit_amount_for)                as credit_for,
+                   sum(ffvd.credit_num)                       as credit_quantity,
+                   sum(ffvd.debit_num)                        as debit_quantity
+            from fxy_financial_voucher_details ffvd
+                     inner join fxy_financial_subject ffs on ffvd.account_sets_id = ffs.account_sets_id
+                and ffvd.subject_id = ffs.id
+            where ffvd.account_sets_id = :accountSetsId
+              and ffvd.year = :year
+              and ffvd.month = :month
+            #[and ffvd.carry_forward = :carryForward]
+            #[and ffvd.cash_flow = :cashFlow]
+            group by ffvd.subject_id, ffs.balance_direction, ffvd.currency_id, ffvd.auxiliary_detail_id
+            ]]>
+        </value>
+    </sql>
+
+    <!--本年-->
+    <sql id="subject_balance_year">
+        <value>
+            <![CDATA[
+            select ffvd.subject_id,
+                   ffvd.currency_id,
+                   coalesce(ffvd.auxiliary_detail_id, 0) as auxiliary_detail_id,
+                   sum(ffvd.debit_amount)                as year_total_debit,
+                   sum(ffvd.credit_amount)               as year_total_credit,
+                   sum(ffvd.debit_amount_for)            as year_total_debit_for,
+                   sum(ffvd.credit_amount_for)           as year_total_credit_for,
+                   sum(ffvd.credit_num)                  as year_total_credit_quantity,
+                   sum(ffvd.debit_num)                   as year_total_debit_quantity
+            from fxy_financial_voucher_details ffvd
+                     inner join fxy_financial_subject ffs on ffvd.account_sets_id = ffs.account_sets_id
+                and ffvd.subject_id = ffs.id
+            where ffvd.account_sets_id = :accountSetsId
+              and ffvd.year = :year
+              and ffvd.month <= :month
+            group by ffvd.subject_id, ffvd.currency_id, ffvd.auxiliary_detail_id
+            ]]>
+        </value>
+    </sql>
+
+    <!--期初-->
+    <sql id="subject_balance_begin">
+        <value>
+            <![CDATA[
+            select ffvd.subject_id,
+                   ffvd.currency_id,
+                   coalesce(ffvd.auxiliary_detail_id, 0)                                                                                                      as auxiliary_detail_id,
+                   if(ffs.balance_direction = '借', sum(ffvd.debit_amount - ffvd.credit_amount), sum(ffvd.credit_amount - ffvd.debit_amount))                 as begin_balance,
+                   if(ffs.balance_direction = '借', sum(ffvd.debit_amount_for - ffvd.credit_amount_for), sum(ffvd.credit_amount_for - ffvd.debit_amount_for)) as begin_balance_for,
+                   if(ffs.balance_direction = '借', sum(ffvd.debit_num - ffvd.credit_num), sum(ffvd.credit_num - ffvd.debit_num))                             as begin_quantity
+            from fxy_financial_voucher_details ffvd
+                     inner join fxy_financial_subject ffs on ffvd.account_sets_id = ffs.account_sets_id
+                and ffvd.subject_id = ffs.id
+            where ffvd.account_sets_id = :accountSetsId
+              and ffvd.voucher_date < :beginDate
+            group by ffvd.subject_id, ffvd.currency_id, ffvd.auxiliary_detail_id
+            ]]>
+        </value>
+    </sql>
+
+    <!--期末-->
+    <sql id="subject_balance_end">
+        <value>
+            <![CDATA[
+            select ffvd.subject_id,
+                   ffvd.currency_id,
+                   coalesce(ffvd.auxiliary_detail_id, 0)                                                                                                      as auxiliary_detail_id,
+                   if(ffs.balance_direction = '借', sum(ffvd.debit_amount - ffvd.credit_amount), sum(ffvd.credit_amount - ffvd.debit_amount))                 as end_balance,
+                   if(ffs.balance_direction = '借', sum(ffvd.debit_amount_for - ffvd.credit_amount_for), sum(ffvd.credit_amount_for - ffvd.debit_amount_for)) as end_balance_for,
+                   if(ffs.balance_direction = '借', sum(ffvd.debit_num - ffvd.credit_num), sum(ffvd.credit_num - ffvd.debit_num))                             as end_quantity
+            from fxy_financial_voucher_details ffvd
+                     inner join fxy_financial_subject ffs on ffvd.account_sets_id = ffs.account_sets_id
+                and ffvd.subject_id = ffs.id
+            where ffvd.account_sets_id = :accountSetsId
+              and ffvd.voucher_date < :endDate
+            group by ffvd.subject_id, ffvd.currency_id, ffvd.auxiliary_detail_id
+            ]]>
+        </value>
+    </sql>
+
+
+    <!--年初-->
+    <sql id="subject_balance_begin_year">
+        <value>
+            <![CDATA[
+            select ffvd.subject_id,
+                   ffvd.account_sets_id,
+                   ffvd.currency_id,
+                   coalesce(ffvd.auxiliary_detail_id, 0)                                                                                                      as auxiliary_detail_id,
+                   if(ffs.balance_direction = '借', sum(ffvd.debit_amount - ffvd.credit_amount), sum(ffvd.credit_amount - ffvd.debit_amount))                 as year_total,
+                   if(ffs.balance_direction = '借', sum(ffvd.debit_amount_for - ffvd.credit_amount_for), sum(ffvd.credit_amount_for - ffvd.debit_amount_for)) as year_total_for,
+                   if(ffs.balance_direction = '借', sum(ffvd.debit_num - ffvd.credit_num), sum(ffvd.credit_num - ffvd.debit_num))                             as year_total_quantity
+            from fxy_financial_voucher_details ffvd
+                     inner join fxy_financial_subject ffs on ffvd.account_sets_id = ffs.account_sets_id
+                and ffvd.subject_id = ffs.id
+            where ffvd.account_sets_id = :accountSetsId
+              and ffvd.voucher_date < :beginYearDate
+            group by ffvd.subject_id, ffvd.currency_id, ffvd.auxiliary_detail_id
+            ]]>
+        </value>
+    </sql>
+
+    <!--上期-->
+    <sql id="subject_balance_previous_period">
+        <value>
+            <![CDATA[
+          select ffb.account_sets_id,
+                 ffs.balance_direction,
+                 ffs.full_name          as subjectFullName,
+                 ffs.name               as subjectName,
+                 ffs.code               as subjectCode,
+                 ffs.leaf as leaf,
+                 subject_id,
+                 currency_id,
+                 auxiliary_detail_id,
+                 end_balance,
+                 end_quantity,
+                 end_balance_for,
+                 end_balance            as begin_balance,
+                 end_quantity           as begin_quantity,
+                 end_balance_for        as begin_balance_for,
+                 end_credit_balance,
+                 end_credit_balance_for,
+                 end_debit_balance,
+                 end_debit_balance_for,
+                 end_credit_balance     as begin_credit_balance,
+                 end_credit_balance_for as begin_credit_balance_for,
+                 end_debit_balance      as begin_debit_balance,
+                 end_debit_balance_for  as begin_debit_balance_for,
+                 year_total,
+                 year_total_credit,
+                 year_total_credit_for,
+                 year_total_begin_credit,
+                 year_total_begin_credit_for,
+                 year_total_credit_quantity,
+                 year_total_begin_debit,
+                 year_total_begin_debit_for,
+                 year_total_debit,
+                 year_total_debit_for,
+                 year_total_debit_quantity,
+                 year_total_for,
+                 year_total_quantity
+          from `@value(:balanceTableName)` ffb
+                 inner join fxy_financial_subject ffs
+                            on ffs.id = ffb.subject_id and ffb.account_sets_id = ffs.account_sets_id
+          where ffb.account_sets_id = :accountSetsId
+            and ffb.year = :year
+            and ffb.period = :period
+          ]]>
+        </value>
+    </sql>
+
+    <!--启用上期-->
+    <sql id="subject_balance_begin_previous_period">
+        <value>
+            <![CDATA[
+            select ffb.account_sets_id,
+                   ffs.balance_direction,
+                   ffs.full_name          as subjectFullName,
+                   ffs.name               as subjectName,
+                   ffs.code               as subjectCode,
+                   ffs.leaf as leaf,
+                   subject_id,
+                   currency_id,
+                   auxiliary_detail_id,
+                   end_balance,
+                   end_quantity,
+                   begin_balance,
+                   begin_quantity,
+                   year_total,
+                   year_total_credit,
+                   year_total_credit_for,
+                   year_total_credit_quantity,
+                   year_total_debit,
+                   year_total_debit_for,
+                   year_total_debit_quantity,
+                   year_total_for,
+                   year_total_quantity,
+                   end_balance_for,
+                   begin_balance_for as begin_balance_for
+            from fxy_financial_balance ffb
+                     inner join fxy_financial_subject ffs
+                                on ffs.id = ffb.subject_id and ffb.account_sets_id = ffs.account_sets_id
+            where ffb.account_sets_id = :accountSetsId
+              and ffs.leaf = 1
+              and ffb.year = :year
+              and ffb.period = :period
+            ]]>
+        </value>
+    </sql>
+
+    <!--父节点合计-->
+    <sql id="subject_balance_parent">
+        <value>
+            <![CDATA[
+            select currency_id,
+                   auxiliary_detail_id,
+                   sum(debit)                      as debit,
+                   sum(credit)                     as credit,
+                   sum(debit_for)                  as debit_for,
+                   sum(credit_for)                 as credit_for,
+                   sum(debit_quantity)             as debit_quantity,
+                   sum(credit_quantity)            as credit_quantity,
+                   sum(begin_balance)              as begin_balance,
+                   sum(begin_quantity)             as begin_quantity,
+                   sum(end_balance)                as end_balance,
+                   sum(end_quantity)               as end_quantity,
+                   sum(year_total)                 as year_total,
+                   sum(year_total_credit)          as year_total_credit,
+                   sum(year_total_credit_for)      as year_total_credit_for,
+                   sum(year_total_credit_quantity) as year_total_credit_quantity,
+                   sum(year_total_debit)           as year_total_debit,
+                   sum(year_total_debit_for)       as year_total_debit_for,
+                   sum(year_total_debit_quantity)  as year_total_debit_quantity,
+                   sum(year_total_for)             as year_total_for,
+                   sum(year_total_quantity)        as year_total_quantity,
+                   sum(begin_balance_for)          as begin_balance_for,
+                   sum(end_balance_for)            as end_balance_for
+            from fxy_financial_balance ffb
+            where ffb.account_sets_id = :accountSetsId
+              and ffb.subject_id in (:subjectIdList)
+              and ffb.year = :year
+              and ffb.period = :period
+            group by ffb.currency_id, ffb.auxiliary_detail_id
+            ]]>
+        </value>
+    </sql>
+
+    <sql id="selectAggregateAmount">
+        <value>
+            <![CDATA[
+            select ffb.subject_id,
+                   sum(ffb.debit)  as debit_amount,
+                   sum(ffb.credit) as credit_amount
+            from fxy_financial_balance ffb
+            where ffb.account_sets_id = :accountSetsId
+              and ffb.year = :year
+              and ffb.period = :period
+              and ffb.subject_id in (:subjectIds)
+            group by ffb.subject_id
+            ]]>
+        </value>
+    </sql>
+
+    <sql id="updateBalance" type="update">
+        <value>
+      <![CDATA[
+            INSERT INTO `fxy_financial_balance` (`account_sets_id`, `id`, `adjust_period`, `auxiliary_detail_id`, `begin_balance`,
+                                                 `begin_balance_for`, `begin_credit_balance`, `begin_credit_balance_for`, `begin_debit_balance`,
+                                                 `begin_debit_balance_for`, `begin_quantity`, `credit`, `credit_for`, `credit_quantity`,
+                                                 `currency_id`, `date`, `debit`, `debit_for`, `debit_quantity`, `end_balance`,
+                                                 `end_balance_for`, `end_credit_balance`, `end_credit_balance_for`, `end_debit_balance`,
+                                                 `end_debit_balance_for`, `end_quantity`, `end_credit_quantity`, `end_debit_quantity`,
+                                                 `period`, `subject_id`, `year`, `year_total`, `year_total_credit`,
+                                                 `year_total_credit_for`, `year_total_begin_credit`,
+                                                 `year_total_begin_credit_for`, `year_total_credit_quantity`,
+                                                 `year_total_debit`, `year_total_debit_for`, `year_total_begin_debit`,
+                                                 `year_total_begin_debit_for`,
+                                                 `year_total_debit_quantity`, `year_total_for`, `year_total_quantity`)
+            VALUES (:accountSetsId, :id, :adjustPeriod, :auxiliaryDetailId, :beginBalance, :beginBalanceFor,
+                    :beginCreditBalance,
+                    :beginCreditBalanceFor, :beginDebitBalance, :beginDebitBalanceFor, :beginQuantity, :credit,
+                    :creditFor,
+                    :creditQuantity, :currencyId, :date, :debit, :debitFor, :debitQuantity, :endBalance, :endBalanceFor,
+                    :endCreditBalance, :endCreditBalanceFor, :endDebitBalance, :endDebitBalanceFor, :endQuantity,
+                    :endCreditQuantity,
+                    :endDebitQuantity, :period, :subjectId, :year, :yearTotal, :yearTotalCredit, :yearTotalCreditFor,
+                    :yearTotalBeginCredit, :yearTotalBeginCreditFor, :yearTotalCreditQuantity,
+                    :yearTotalDebit, :yearTotalDebitFor, :yearTotalBeginDebit, :yearTotalBeginDebitFor,
+                    :yearTotalDebitQuantity, :yearTotalFor, :yearTotalQuantity)
+            on duplicate key update `begin_balance`               = values(begin_balance),
+                                    `begin_balance_for`           = values(begin_balance_for),
+                                    `begin_credit_balance`        = values(begin_credit_balance),
+                                    `begin_credit_balance_for`    = values(begin_credit_balance_for),
+                                    `begin_debit_balance`         = values(begin_debit_balance),
+                                    `begin_debit_balance_for`     = values(begin_debit_balance_for),
+                                    `begin_quantity`              = values(begin_quantity),
+                                    `credit`                      = values(credit),
+                                    `credit_for`                  = values(credit_for),
+                                    `credit_quantity`             = values(credit_quantity),
+                                    `debit`                       = values(debit),
+                                    `debit_for`                   = values(debit_for),
+                                    `debit_quantity`              = values(debit_quantity),
+                                    `end_balance`                 = values(end_balance),
+                                    `end_balance_for`             = values(end_balance_for),
+                                    `end_credit_balance`          = values(end_credit_balance),
+                                    `end_credit_balance_for`      = values(end_credit_balance_for),
+                                    `end_debit_balance`           = values(end_debit_balance),
+                                    `end_debit_balance_for`       = values(end_debit_balance_for),
+                                    `end_quantity`                = values(end_quantity),
+                                    `end_credit_quantity`         = values(end_credit_quantity),
+                                    `end_debit_quantity`          = values(end_debit_quantity),
+                                    `year_total`                  = values(year_total),
+                                    `year_total_credit`           = values(year_total_credit),
+                                    `year_total_credit_for`       = values(year_total_credit_for),
+                                    `year_total_begin_credit`     = values(year_total_begin_credit),
+                                    `year_total_begin_credit_for` = values(year_total_begin_credit_for),
+                                    `year_total_credit_quantity`  = values(year_total_credit_quantity),
+                                    `year_total_debit`            = values(year_total_debit),
+                                    `year_total_debit_for`        = values(year_total_debit_for),
+                                    `year_total_begin_debit`      = values(year_total_begin_debit),
+                                    `year_total_begin_debit_for`  = values(year_total_begin_debit_for),
+                                    `year_total_debit_quantity`   = values(year_total_debit_quantity),
+                                    `year_total_for`              = values(year_total_for),
+                                    `year_total_quantity`         = values(year_total_quantity);
+            ]]>
+    </value>
+    </sql>
+
+    <sql id="updateBalanceCashFlow" type="update">
+        <value>
+      <![CDATA[
+            INSERT INTO `fxy_financial_balance_cash_flow` (`account_sets_id`, `id`, `adjust_period`,
+                                                           `auxiliary_detail_id`, `begin_balance`,
+                                                           `begin_balance_for`, `begin_credit_balance`,
+                                                           `begin_credit_balance_for`, `begin_debit_balance`,
+                                                           `begin_debit_balance_for`, `begin_quantity`, `credit`,
+                                                           `credit_for`, `credit_quantity`,
+                                                           `currency_id`, `date`, `debit`, `debit_for`,
+                                                           `debit_quantity`, `end_balance`,
+                                                           `end_balance_for`, `end_credit_balance`,
+                                                           `end_credit_balance_for`, `end_debit_balance`,
+                                                           `end_debit_balance_for`, `end_quantity`,
+                                                           `end_credit_quantity`, `end_debit_quantity`,
+                                                 `period`, `subject_id`, `year`, `year_total`, `year_total_credit`,
+                                                 `year_total_credit_for`, `year_total_begin_credit`,
+                                                 `year_total_begin_credit_for`, `year_total_credit_quantity`, `year_total_debit`, `year_total_debit_for`, `year_total_begin_debit`, `year_total_begin_debit_for`,
+                                                 `year_total_debit_quantity`, `year_total_for`, `year_total_quantity`)
+            VALUES (:accountSetsId, :id, :adjustPeriod, :auxiliaryDetailId, :beginBalance, :beginBalanceFor, :beginCreditBalance,
+                    :beginCreditBalanceFor, :beginDebitBalance, :beginDebitBalanceFor, :beginQuantity, :credit, :creditFor,
+                    :creditQuantity, :currencyId, :date, :debit, :debitFor, :debitQuantity, :endBalance, :endBalanceFor,
+                    :endCreditBalance, :endCreditBalanceFor, :endDebitBalance, :endDebitBalanceFor, :endQuantity, :endCreditQuantity,
+                    :endDebitQuantity, :period, :subjectId, :year, :yearTotal, :yearTotalCredit, :yearTotalCreditFor, :yearTotalBeginCredit, :yearTotalBeginCreditFor, :yearTotalCreditQuantity,
+                    :yearTotalDebit, :yearTotalDebitFor, :yearTotalBeginDebit, :yearTotalBeginDebitFor, :yearTotalDebitQuantity, :yearTotalFor, :yearTotalQuantity)
+            on duplicate key update `begin_balance`               = values(begin_balance),
+                                    `begin_balance_for`           = values(begin_balance_for),
+                                    `begin_credit_balance`        = values(begin_credit_balance),
+                                    `begin_credit_balance_for`    = values(begin_credit_balance_for),
+                                    `begin_debit_balance`         = values(begin_debit_balance),
+                                    `begin_debit_balance_for`     = values(begin_debit_balance_for),
+                                    `begin_quantity`              = values(begin_quantity),
+                                    `credit`                      = values(credit),
+                                    `credit_for`                  = values(credit_for),
+                                    `credit_quantity`             = values(credit_quantity),
+                                    `debit`                       = values(debit),
+                                    `debit_for`                   = values(debit_for),
+                                    `debit_quantity`              = values(debit_quantity),
+                                    `end_balance`                 = values(end_balance),
+                                    `end_balance_for`             = values(end_balance_for),
+                                    `end_credit_balance`          = values(end_credit_balance),
+                                    `end_credit_balance_for`      = values(end_credit_balance_for),
+                                    `end_debit_balance`           = values(end_debit_balance),
+                                    `end_debit_balance_for`       = values(end_debit_balance_for),
+                                    `end_quantity`                = values(end_quantity),
+                                    `end_credit_quantity`         = values(end_credit_quantity),
+                                    `end_debit_quantity`          = values(end_debit_quantity),
+                                    `year_total`                  = values(year_total),
+                                    `year_total_credit`           = values(year_total_credit),
+                                    `year_total_credit_for`       = values(year_total_credit_for),
+                                    `year_total_begin_credit`     = values(year_total_begin_credit),
+                                    `year_total_begin_credit_for` = values(year_total_begin_credit_for),
+                                    `year_total_credit_quantity`  = values(year_total_credit_quantity),
+                                    `year_total_debit`            = values(year_total_debit),
+                                    `year_total_debit_for`        = values(year_total_debit_for),
+                                    `year_total_begin_debit`      = values(year_total_begin_debit),
+                                    `year_total_begin_debit_for`  = values(year_total_begin_debit_for),
+                                    `year_total_debit_quantity`   = values(year_total_debit_quantity),
+                                    `year_total_for`              = values(year_total_for),
+                                    `year_total_quantity`         = values(year_total_quantity);
+            ]]>
+    </value>
+    </sql>
+</sqltoy>

@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="utf-8"?>
+<sqltoy xmlns="http://www.sagframe.com/schema/sqltoy"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.sagframe.com/schema/sqltoy http://www.sagframe.com/schema/sqltoy/sqltoy.xsd">
+
+
+    <sql id="getAccountSetsOfIndividualTax" type="select">
+        <value>
+            <![CDATA[
+                select
+                    ffas.company_name as companyName,
+                    ffas.id as accountSetsId,
+                    ffas.individual_tax as individualTax,
+                    ffas.individual_tax_code as individualTaxCode
+                    from
+                    fxy_financial_account_sets ffas
+                where
+                    exists (
+                        select
+                            1
+                        from
+                            fxy_financial_user_account_sets ffuas
+                        where
+                            ffuas.user_id = :userId
+                            and ffas.id = ffuas.account_sets_id )
+                    and ffas.deactivated is false
+            ]]>
+        </value>
+    </sql>
+    <sql id="getEmployeeOfIndividualTax" type="select">
+        <value>
+            <![CDATA[
+                select
+                    fe.account_sets_id   as accountSetsId,
+                    count(1)             as numEmployee
+                from fxy_financial_employee fe
+                where exists (
+                        select 1
+                          from fxy_financial_user_account_sets ffuas
+                         where ffuas.user_id = :userId
+                           and ffuas.account_sets_id = fe.account_sets_id
+                )
+                group by fe.account_sets_id
+            ]]>
+        </value>
+    </sql>
+    <sql id="getSalaryOfIndividualTax" type="select">
+        <value>
+            <![CDATA[
+                select
+                    ffs.account_sets_id    as accountSetsId,
+                    count(1)               as numSalary
+                from fxy_financial_salary ffs
+                where ffs.period = :period
+                  and ffs.state = 1
+                  and exists (
+                        select 1
+                          from fxy_financial_user_account_sets ffuas
+                         where ffuas.user_id = :userId
+                           and ffuas.account_sets_id = ffs.account_sets_id
+                  )
+                group by ffs.account_sets_id
+            ]]>
+        </value>
+    </sql>
+    <sql id="getExistOfIndividualTax" type="select">
+        <value>
+            <![CDATA[
+                SELECT
+                    fe.account_sets_id AS accountSetsId,
+                    1 AS isExist
+                FROM
+                    fxy_financial_individual_tax fe
+                    JOIN fxy_financial_account_sets ffas ON fe.account_sets_id = ffas.id
+                    JOIN (
+                        SELECT account_sets_id, MAX(id) AS max_id
+                        FROM fxy_financial_individual_tax
+                        WHERE period = :period
+                        GROUP BY account_sets_id
+                    ) m ON m.account_sets_id = fe.account_sets_id AND m.max_id = fe.id
+                WHERE
+                    EXISTS (
+                        SELECT 1 FROM fxy_financial_user_account_sets ffuas
+                        WHERE ffuas.user_id = :userId
+                          AND ffuas.account_sets_id = fe.account_sets_id
+                    )
+                    AND (ffas.individual_tax IS NULL OR ffas.individual_tax = '')
+            ]]>
+        </value>
+    </sql>
+    <sql id="getResultOfIndividualTax" type="select">
+        <value>
+            <![CDATA[
+                SELECT
+                    fe.account_sets_id AS accountSetsId,
+                    fe.result AS result,
+                    fe.failed_reason AS failedReason,
+                    fe.img_name AS imgName,
+                    COALESCE(fe.audit_status, 0) AS auditStatus
+                FROM
+                    fxy_financial_individual_tax fe
+                    JOIN fxy_financial_account_sets ffas ON fe.account_sets_id = ffas.id
+                    JOIN (
+                        SELECT account_sets_id, MAX(id) AS max_id
+                        FROM fxy_financial_individual_tax
+                        WHERE period = :period
+                        GROUP BY account_sets_id
+                    ) m ON m.account_sets_id = fe.account_sets_id AND m.max_id = fe.id
+                WHERE
+                    EXISTS (
+                        SELECT 1
+                        FROM fxy_financial_user_account_sets ffuas
+                        WHERE ffuas.user_id = :userId
+                          AND ffuas.account_sets_id = fe.account_sets_id
+                    )
+                    AND (ffas.individual_tax IS NULL OR ffas.individual_tax = '')
+            ]]>
+        </value>
+    </sql>
+    <sql id="getTotalAccountSetsCountOfIndividualTax" type="select">
+        <value>
+            <![CDATA[
+                SELECT
+                    COUNT(1) AS totalCount
+                FROM
+                    fxy_financial_account_sets ffas
+                WHERE
+                    EXISTS (
+                        SELECT
+                            1
+                        FROM
+                            fxy_financial_user_account_sets ffuas
+                        WHERE
+                            ffuas.user_id = :userId
+                            AND ffas.id = ffuas.account_sets_id
+                    )
+                    AND ffas.deactivated IS FALSE
+                    AND (ffas.individual_tax IS NULL OR ffas.individual_tax = '')
+            ]]>
+        </value>
+    </sql>
+
+
+</sqltoy>

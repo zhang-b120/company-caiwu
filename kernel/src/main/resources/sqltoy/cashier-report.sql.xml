@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="utf-8"?>
+<sqltoy xmlns="http://www.sagframe.com/schema/sqltoy"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.sagframe.com/schema/sqltoy http://www.sagframe.com/schema/sqltoy/sqltoy.xsd">
+    <sql id="accountSummary" type="select">
+        <value>
+            <![CDATA[
+            SELECT t.*,
+                   COALESCE(temp.sr, 0)                                                        sr,
+                   COALESCE(temp.zc, 0)                                                        zc,
+                   COALESCE(temp.srbs, 0)                                                      srbs,
+                   COALESCE(temp.zcbs, 0)                                                      zcbs,
+                   coalesce(t.initialBalance, 0) + coalesce(temp.sr, 0) - coalesce(temp.zc, 0) balance
+            FROM (SELECT ffca.id,
+                         ffca.CODE,
+                         ffca.`name`,
+                         ffca.type,
+                         COALESCE(
+                                 COALESCE((SELECT ffcj2.balance
+                                           FROM fxy_financial_cashier_journal ffcj2
+                                           WHERE ffcj2.account_id = ffca.id
+                                             AND ffcj2.account_sets_id = :accountSetsId
+                                             AND ffcj2.bill_date < :start
+                                           ORDER BY ffcj2.bill_date DESC,
+                                                    ffcj2.serial DESC,
+                                                    ffcj2.serial_number DESC
+                                           LIMIT 1),
+                                          (SELECT ffcj2.balance FROM fxy_financial_cashier_journal ffcj2 WHERE ffcj2.account_id = ffca.id AND ffcj2.account_sets_id = :accountSetsId AND ffcj2.init = 1 LIMIT 1)),
+                                 0
+                         ) AS initialBalance
+                  FROM fxy_financial_cashier_account ffca
+                  WHERE ffca.account_sets_id = :accountSetsId) t
+                     LEFT JOIN (SELECT ffca.id AS                         aid,
+                                       sum(ffcj.debit)                    sr,
+                                       sum(ffcj.credit)                   zc,
+                                       sum(IF(ffcj.debit IS NULL, 0, 1))  srbs,
+                                       sum(IF(ffcj.credit IS NULL, 0, 1)) zcbs
+                                FROM fxy_financial_cashier_account ffca
+                                         LEFT JOIN fxy_financial_cashier_journal ffcj ON ffcj.account_id = ffca.id
+                                    AND ffca.account_sets_id = ffcj.account_sets_id
+                                WHERE ffcj.account_sets_id = :accountSetsId
+                                  and ffcj.bill_date between :start and :end
+                                GROUP BY ffcj.account_id,
+                                         ffca.type) AS temp ON t.id = temp.aid
+            ]]>
+        </value>
+    </sql>
+
+    <sql id="accountSubtotal" type="select">
+        <value>
+            <![CDATA[
+            select temp.*,
+                   temp.initBalance + temp.sr - temp.zc as balance
+            from (select ffca.id,
+                         ffca.code,
+                         ffca.account_sets_id,
+                         ffca.name,
+                         ffc.name                          currencyName,
+                         ffca.currency_id,
+                         ffca.subject_id,
+                         ffs.code                       as subject_code,
+                         sum(coalesce(ffcj.debit, 0))      sr,
+                         sum(coalesce(ffcj.credit, 0))     zc,
+                         coalesce((select ffcj2.balance
+                                   from fxy_financial_cashier_journal ffcj2
+                                   where ffcj2.account_id = ffca.id
+                                     and ffcj2.account_sets_id = ffca.account_sets_id
+                                     and ffcj2.bill_date < :start
+                                   order by ffcj2.bill_date DESC,
+                                            ffcj2.serial DESC,
+                                            ffcj2.serial_number DESC
+                                   limit 1), (select ffcj2.balance
+                                              from fxy_financial_cashier_journal ffcj2
+                                              where ffcj2.account_id = ffcj.account_id
+                                                and ffcj2.account_sets_id = ffca.account_sets_id
+                                                and ffcj2.init = 1
+                                              limit 1)) as initBalance
+                  from fxy_financial_cashier_journal ffcj
+                           left join fxy_financial_cashier_account ffca on ffcj.account_id = ffca.id and ffca.account_sets_id = :accountSetsId
+                           left join fxy_financial_currency ffc on ffca.currency_id = ffc.id and ffc.account_sets_id = :accountSetsId
+                           left join fxy_financial_subject ffs on ffca.subject_id = ffs.id and ffs.account_sets_id = :accountSetsId
+                  where ffcj.account_sets_id = :accountSetsId
+                    and ffcj.bill_date between :start and :end
+                    and ffca.subject_id is not null
+                  #[and ffca.id = :cashierAccountId]
+                  #[and ffca.currency_id = :currencyId]
+                  group by ffca.subject_id,
+            ffca.id,
+            ffca.code,
+            ffca.account_sets_id,
+            ffca.name,
+            ffc.name,
+            ffca.currency_id,
+            ffca.subject_id,
+            ffs.code) as temp
+            ]]>
+        </value>
+    </sql>
+    <sql id="subjectInitBalance" type="select">
+        <value>
+            <![CDATA[
+            select ffvd.begin_balance balance
+            from fxy_financial_balance ffvd
+            where ffvd.account_sets_id = :accountSetsId
+              and ffvd.auxiliary_detail_id = 0
+              and ffvd.subject_id = :subjectId
+              and ffvd.currency_id = :currencyId
+              and ffvd.year = :year
+              and ffvd.period = :period
+            ]]>
+        </value>
+    </sql>
+    <sql id="subjectSubtotal" type="select">
+        <value>
+            <![CDATA[
+            select sum(coalesce(ffvd.debit_amount, 0)) sr, sum(coalesce(ffvd.credit_amount, 0)) zc
+            from fxy_financial_voucher_details ffvd
+                     left join fxy_financial_voucher ffv on ffvd.voucher_id = ffv.id and ffv.account_sets_id = ffvd.account_sets_id
+            where ffvd.account_sets_id = :accountSetsId
+              and ffvd.subject_id = :subjectId
+              and ffv.voucher_date between :start and :end
+            group by ffvd.account_sets_id, ffvd.account_sets_id
+            ]]>
+        </value>
+    </sql>
+
+    <sql id="ioTypeSummary" type="select">
+        <value>
+            <![CDATA[
+            select ffcit.id,
+                   ffcit.code,
+                   ffcit.name,
+                   ffcit.type,
+                   coalesce(sum(ffcj.debit), 0)       sr,
+                   coalesce(sum(ffcj.credit), 0)      zc,
+                   sum(IF(ffcj.debit is null, 0, 1))  srbs,
+                   sum(IF(ffcj.credit is null, 0, 1)) zcbs
+            from fxy_financial_cashier_journal ffcj
+                     left join fxy_financial_cashier_io_type ffcit on ffcj.io_type_id = ffcit.id and ffcj.account_sets_id = ffcit.account_sets_id
+            where ffcj.account_sets_id = :accountSetsId
+              and ffcj.bill_date between :start and :end
+              and ffcj.io_type_id is not null
+            group by ffcit.type, ffcit.name, ffcit.code
+            order by cast(ffcit.code as signed)
+            ]]>
+        </value>
+    </sql>
+</sqltoy>
