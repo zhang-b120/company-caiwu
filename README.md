@@ -198,12 +198,12 @@ Flyway 当前在 `application.yml` 里关闭了 `validate-on-migrate`，并忽�
 | 配置键 | 当前路径 |
 |---|---|
 | `customize-config.base-path` | `D:\financialExcel` |
-| `customize-config.screen-img-path` | `E:\qykj\file\imgs` |
-| `customize-config.pay-img-path` | `E:\qykj\file\payImgs` |
-| `customize-config.screen-bank-path` | `E:\qykj\file\financialBank` |
-| `oc.screenshot-root` | `E:\qykj\file\oc-screenshots` |
+| `customize-config.screen-img-path` | `E:\\file\imgs` |
+| `customize-config.pay-img-path` | `E:\\file\payImgs` |
+| `customize-config.screen-bank-path` | `E:\\file\financialBank` |
+| `oc.screenshot-root` | `E:\\file\oc-screenshots` |
 | `oc.output-root` | `D:\tax_output` |
-| `invoice-files.root` | `E:\qykj\file\invoice-files` |
+| `invoice-files.root` | `E:\\file\invoice-files` |
 | `oc.screenshot-base-url` / `invoice-files.base-url` | `http://150.139.141.142:8888/api` |
 | `static-url.base-url` | `https://www.qingyicloud.com/` |
 
